@@ -1,5 +1,7 @@
-import { Activity, BarChart3, BriefcaseBusiness, CircleUserRound, LayoutDashboard, ReceiptText } from 'lucide-react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { Activity, BarChart3, BriefcaseBusiness, CircleUserRound, LayoutDashboard, LogOut, ReceiptText } from 'lucide-react';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+
+import { useAuth } from '../auth/AuthContext';
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -9,6 +11,14 @@ const navItems = [
 ];
 
 export function AppLayout() {
+  const auth = useAuth();
+  const navigate = useNavigate();
+
+  async function handleLogout() {
+    await auth.logout();
+    navigate('/auth/login', { replace: true });
+  }
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -28,10 +38,20 @@ export function AppLayout() {
             );
           })}
         </nav>
-        <NavLink className="account-link" to="/auth/login" aria-label="Account">
-          <CircleUserRound aria-hidden="true" size={20} />
-          <span>Account</span>
-        </NavLink>
+        {auth.status === 'authenticated' ? (
+          <div className="account-menu">
+            <span className="account-email">{auth.user?.email}</span>
+            <button type="button" className="icon-text-button" onClick={handleLogout}>
+              <LogOut aria-hidden="true" size={18} />
+              <span>Sign out</span>
+            </button>
+          </div>
+        ) : (
+          <NavLink className="account-link" to="/auth/login" aria-label="Account">
+            <CircleUserRound aria-hidden="true" size={20} />
+            <span>Sign in</span>
+          </NavLink>
+        )}
       </header>
       <main className="content-shell">
         <Outlet />

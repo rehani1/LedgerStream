@@ -90,6 +90,8 @@ Refresh tokens are opaque values returned only at issue time. The backend stores
 
 All non-auth API endpoints require a bearer access token unless explicitly marked public. `/api/admin/**` endpoints require a user with the `ADMIN` role.
 
+The frontend auth flow posts credentials to the implemented auth endpoints, stores the returned token pair in `sessionStorage` for the current browser session, verifies stored access tokens with `GET /api/me`, and attempts refresh-token rotation when a stored access token is no longer accepted.
+
 ## Symbols And Quotes
 
 Ticker path variables are normalized to uppercase and must be 1 to 16 characters using letters, digits, or dots. Unknown symbols return `404`.

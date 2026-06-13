@@ -236,6 +236,53 @@ th {
   cursor: pointer;
 }
 
+.primary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.68;
+}
+
+.account-menu {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.account-email {
+  max-width: 220px;
+  overflow: hidden;
+  color: #4d5a51;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.icon-text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  border: 1px solid #cfd7cc;
+  border-radius: 8px;
+  padding: 0 12px;
+  background: #ffffff;
+  color: #27322b;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.icon-text-button:hover {
+  border-color: #9db2a2;
+}
+
+.form-error {
+  margin: -4px 0 0;
+  color: #9f2f24;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
 .switch-auth {
   margin-bottom: 0;
   color: #526158;
@@ -276,6 +323,14 @@ th {
   .nav-link,
   .account-link {
     white-space: nowrap;
+  }
+
+  .account-menu {
+    justify-content: flex-end;
+  }
+
+  .account-email {
+    display: none;
   }
 
   .metric-grid {

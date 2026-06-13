@@ -42,7 +42,9 @@ Demo account seeding is disabled by default and only available under `local` or 
 
 ## Token Storage Tradeoff
 
-Refresh tokens are currently returned in response bodies for API and testability. The frontend implementation must decide whether to keep them in memory, move them to secure HTTP-only cookies, or document another MVP-compatible storage tradeoff.
+Refresh tokens are currently returned in response bodies for API and testability. The frontend stores the access token, refresh token, expirations, and current user in `sessionStorage` for the MVP. This avoids persistence across browser restarts but is still readable by JavaScript if an XSS bug exists. A production deployment should move refresh tokens to `Secure`, `HttpOnly`, `SameSite` cookies and keep access tokens in memory where practical.
+
+The frontend verifies a stored session with `GET /api/me` during app startup. If the access token is rejected, it attempts one refresh-token rotation and clears the session on failure. Logout clears local session state first and then calls the backend logout endpoint to revoke the refresh token.
 
 ## TODO
 

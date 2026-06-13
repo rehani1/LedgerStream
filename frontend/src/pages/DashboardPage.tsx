@@ -1,12 +1,17 @@
 import { useQuery } from '@tanstack/react-query';
 
 import { apiRequest } from '../api/client';
+import { useAuth } from '../auth/AuthContext';
 import type { SymbolSummary } from '../api/types';
 
 export function DashboardPage() {
+  const auth = useAuth();
   const symbolsQuery = useQuery({
     queryKey: ['symbols'],
-    queryFn: () => apiRequest<SymbolSummary[]>('/api/symbols')
+    queryFn: () => apiRequest<SymbolSummary[]>('/api/symbols', {
+      accessToken: auth.accessToken ?? undefined
+    }),
+    enabled: auth.status === 'authenticated' && Boolean(auth.accessToken)
   });
 
   return (

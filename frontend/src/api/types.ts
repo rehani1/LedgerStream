@@ -6,6 +6,15 @@ export type CurrentUser = {
   role: UserRole;
 };
 
+export type AuthResponse = {
+  accessToken: string;
+  tokenType: string;
+  expiresAt: string;
+  refreshToken: string;
+  refreshTokenExpiresAt: string;
+  user: CurrentUser;
+};
+
 export type SymbolSummary = {
   ticker: string;
   name: string;

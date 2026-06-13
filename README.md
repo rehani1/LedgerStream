@@ -111,6 +111,8 @@ npm run dev
 
 Set `VITE_API_BASE_URL` for local development or `FRONTEND_API_BASE_URL` when building through Docker Compose. The initial app shell includes routes for dashboard, login/register, portfolio, orders, and risk.
 
+Frontend authentication is wired to the backend register, login, refresh, logout, and `/api/me` endpoints. Tokens are stored in browser `sessionStorage` for the MVP; see [Security](docs/security.md) for the tradeoff.
+
 ### Demo Data
 
 Supported symbols are seeded by Flyway: `AAPL`, `MSFT`, `NVDA`, `TSLA`, and `SPY`.
