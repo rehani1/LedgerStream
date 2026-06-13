@@ -35,7 +35,7 @@ The target local command is:
 docker compose up --build
 ```
 
-This repository is currently in the initial scaffold stage. Service-specific setup commands will be added as the backend, worker, frontend, and local infrastructure are implemented.
+This starts the local backend, frontend, PostgreSQL, Redis, Redpanda, Prometheus, and Grafana services. The market-data worker is available through the `worker` Compose profile.
 
 ### Backend
 
@@ -97,6 +97,20 @@ The Compose service is behind the `worker` profile and publishes to Redpanda whe
 docker compose --profile worker up --build market-data-worker
 ```
 
+### Frontend
+
+The frontend is a React, TypeScript, and Vite app under `frontend/`.
+
+```bash
+cd frontend
+npm install
+npm run build
+npm test -- --run
+npm run dev
+```
+
+Set `VITE_API_BASE_URL` for local development or `FRONTEND_API_BASE_URL` when building through Docker Compose. The initial app shell includes routes for dashboard, login/register, portfolio, orders, and risk.
+
 ### Demo Data
 
 Supported symbols are seeded by Flyway: `AAPL`, `MSFT`, `NVDA`, `TSLA`, and `SPY`.
@@ -114,7 +128,7 @@ Demo account seeding is disabled by default. For local development only, set `DE
 | Prometheus | `9090` | Metrics UI and scrape storage. |
 | Grafana | `3000` | Dashboard UI; local default user is `admin`. |
 | Backend | `8080` | Planned Spring Boot API port. |
-| Frontend | `5173` | Planned Vite dev server port. |
+| Frontend | `5173` | Vite dev server locally, or Compose-served static dashboard. |
 
 ## Documentation
 

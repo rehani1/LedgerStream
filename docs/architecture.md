@@ -40,6 +40,10 @@ CSV replay
 
 The backend starts as a Spring Boot 3 application with Web, Security, Validation, JPA, Redis, Flyway, Kafka, Actuator, Prometheus, PostgreSQL, and Testcontainers dependencies. The first exposed endpoints are `/api/ping` and `/actuator/health`; domain endpoints are added behind authentication as their backing services land.
 
+## Frontend Foundation
+
+The frontend is a Vite React TypeScript app. It uses React Router for dashboard, authentication, portfolio, orders, and risk routes; TanStack Query for API-backed state; and a small API client abstraction that reads `VITE_API_BASE_URL`. Docker builds the static bundle and serves it through Nginx with SPA route fallback.
+
 ## Redis Cache
 
 The backend has a Redis-backed latest quote cache abstraction. Latest quote entries use the key pattern `latest_quote:{SYMBOL}` by default, with symbols normalized to uppercase. Values are JSON payloads that include the quote timestamp, bid, ask, last price, volume, and source. No TTL is applied yet because stale detection should use the embedded timestamp and future quote APIs can fall back to PostgreSQL.
