@@ -44,6 +44,8 @@ The backend starts as a Spring Boot 3 application with Web, Security, Validation
 
 The backend has a Redis-backed latest quote cache abstraction. Latest quote entries use the key pattern `latest_quote:{SYMBOL}` by default, with symbols normalized to uppercase. Values are JSON payloads that include the quote timestamp, bid, ask, last price, volume, and source. No TTL is applied yet because stale detection should use the embedded timestamp and future quote APIs can fall back to PostgreSQL.
 
+Symbol and quote REST APIs are authenticated. Latest quote reads check Redis first and fall back to the newest persisted tick in PostgreSQL. Historical quote reads are bounded by a supported range and a maximum limit of 500 ticks.
+
 ## Event Streaming
 
 Backend event streaming is configured through Spring Kafka for Redpanda-compatible brokers. Producer JSON serialization is configured with idempotent producer settings and `acks=all`. Type headers are disabled so worker and frontend-adjacent tooling can consume plain JSON by topic contract.

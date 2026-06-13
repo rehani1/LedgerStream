@@ -14,10 +14,10 @@ The API surface below is the target contract. Endpoints will be marked as implem
 | Auth | `POST` | `/api/auth/refresh` | Public | Implemented. Rotate refresh token and issue a new token pair. |
 | Auth | `POST` | `/api/auth/logout` | Public | Implemented. Revoke the provided refresh token. |
 | Auth | `GET` | `/api/me` | User | Implemented. Return current JWT principal. |
-| Symbols | `GET` | `/api/symbols` | User | List supported symbols. |
-| Symbols | `GET` | `/api/symbols/{ticker}` | User | Return symbol metadata. |
-| Quotes | `GET` | `/api/symbols/{ticker}/quote` | User | Return latest quote from Redis with database fallback. |
-| Quotes | `GET` | `/api/symbols/{ticker}/history?range=1d` | User | Return historical ticks with bounded result size. |
+| Symbols | `GET` | `/api/symbols` | User | Implemented. List active supported symbols. |
+| Symbols | `GET` | `/api/symbols/{ticker}` | User | Implemented. Return symbol metadata. |
+| Quotes | `GET` | `/api/symbols/{ticker}/quote` | User | Implemented. Return latest quote from Redis with database fallback. |
+| Quotes | `GET` | `/api/symbols/{ticker}/history?range=1d&limit=500` | User | Implemented. Return historical ticks with bounded result size. |
 | Streaming | `GET` | `/api/stream/quotes?symbols=AAPL,MSFT` | User | SSE quote stream. |
 | Orders | `POST` | `/api/orders` | User | Requires `Idempotency-Key`. |
 | Orders | `GET` | `/api/orders` | User | User-scoped order history. |
@@ -89,6 +89,61 @@ Refresh and logout accept the same body shape:
 Refresh tokens are opaque values returned only at issue time. The backend stores only a SHA-256 hash, rotates the token on every successful refresh, rejects expired tokens, and treats reuse of an already-revoked refresh token as a suspicious event that revokes remaining active refresh tokens for that user.
 
 All non-auth API endpoints require a bearer access token unless explicitly marked public. `/api/admin/**` endpoints require a user with the `ADMIN` role.
+
+## Symbols And Quotes
+
+Ticker path variables are normalized to uppercase and must be 1 to 16 characters using letters, digits, or dots. Unknown symbols return `404`.
+
+`GET /api/symbols` returns active symbols:
+
+```json
+[
+  {
+    "id": "00000000-0000-0000-0000-000000000001",
+    "ticker": "AAPL",
+    "name": "Apple Inc.",
+    "exchange": "NASDAQ",
+    "assetType": "EQUITY",
+    "currency": "USD",
+    "active": true
+  }
+]
+```
+
+`GET /api/symbols/AAPL/quote` checks Redis first and falls back to the latest persisted PostgreSQL tick:
+
+```json
+{
+  "symbol": "AAPL",
+  "timestamp": "2026-01-02T14:34:00Z",
+  "bid": 187.360000,
+  "ask": 187.480000,
+  "last": 187.420000,
+  "volume": 136200,
+  "source": "fixture"
+}
+```
+
+`GET /api/symbols/AAPL/history?range=1d&limit=500` supports `range` values `5m`, `15m`, `1h`, `6h`, `1d`, and `5d`. `limit` defaults to `500` and must be between `1` and `500`.
+
+```json
+{
+  "symbol": "AAPL",
+  "range": "1d",
+  "limit": 500,
+  "ticks": [
+    {
+      "symbol": "AAPL",
+      "timestamp": "2026-01-02T14:34:00Z",
+      "bid": 187.360000,
+      "ask": 187.480000,
+      "last": 187.420000,
+      "volume": 136200,
+      "source": "fixture"
+    }
+  ]
+}
+```
 
 `GET /api/admin/queue-health` currently returns the configured event-topic contract. It does not claim live broker connectivity yet:
 

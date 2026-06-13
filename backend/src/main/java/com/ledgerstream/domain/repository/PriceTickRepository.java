@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import com.ledgerstream.domain.model.PriceTick;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface PriceTickRepository extends JpaRepository<PriceTick, Long> {
@@ -13,6 +14,8 @@ public interface PriceTickRepository extends JpaRepository<PriceTick, Long> {
 	List<PriceTick> findTop500BySymbolTickerAndTsAfterOrderByTsAsc(String ticker, Instant after);
 
 	Optional<PriceTick> findFirstBySymbolTickerOrderByTsDesc(String ticker);
+
+	List<PriceTick> findBySymbolTickerAndTsAfterOrderByTsAsc(String ticker, Instant after, Pageable pageable);
 
 	boolean existsBySymbolIdAndTsAndSource(UUID symbolId, Instant ts, String source);
 }

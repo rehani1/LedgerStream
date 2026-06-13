@@ -68,6 +68,13 @@ Implemented auth endpoints:
 - `POST /api/auth/logout`
 - `GET /api/me`
 
+Implemented symbol and quote endpoints:
+
+- `GET /api/symbols`
+- `GET /api/symbols/{ticker}`
+- `GET /api/symbols/{ticker}/quote`
+- `GET /api/symbols/{ticker}/history?range=1d&limit=500`
+
 ### Market Data Worker
 
 The market-data worker validates deterministic CSV replay fixtures and can publish normalized `market.tick` events to Redpanda.
