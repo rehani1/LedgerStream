@@ -45,8 +45,9 @@ class AdminControllerAuthorizationTest {
 	void queueHealthAllowsAdminUser() throws Exception {
 		mockMvc.perform(get("/api/admin/queue-health").with(authentication(authenticatedUser(UserRole.ADMIN))))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.status").value("not_configured"))
-			.andExpect(jsonPath("$.checkedAt").exists());
+			.andExpect(jsonPath("$.status").value("topics_configured"))
+			.andExpect(jsonPath("$.checkedAt").exists())
+			.andExpect(jsonPath("$.topics.marketTick").value("market.tick"));
 	}
 
 	private UsernamePasswordAuthenticationToken authenticatedUser(UserRole role) {

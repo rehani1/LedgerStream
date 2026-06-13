@@ -90,13 +90,114 @@ Refresh tokens are opaque values returned only at issue time. The backend stores
 
 All non-auth API endpoints require a bearer access token unless explicitly marked public. `/api/admin/**` endpoints require a user with the `ADMIN` role.
 
-`GET /api/admin/queue-health` currently returns an honest integration status until Kafka consumers are implemented:
+`GET /api/admin/queue-health` currently returns the configured event-topic contract. It does not claim live broker connectivity yet:
 
 ```json
 {
-  "status": "not_configured",
+  "status": "topics_configured",
   "checkedAt": "2026-01-01T00:00:00Z",
-  "topics": {}
+  "topics": {
+    "marketTick": "market.tick",
+    "orderCreated": "order.created",
+    "orderFilled": "order.filled",
+    "portfolioUpdated": "portfolio.updated",
+    "riskUpdated": "risk.updated",
+    "auditEvent": "audit.event"
+  }
+}
+```
+
+## Event Topics
+
+LedgerStream uses JSON payloads on Kafka-compatible topics.
+
+### `market.tick`
+
+```json
+{
+  "eventId": "00000000-0000-0000-0000-000000000001",
+  "symbol": "AAPL",
+  "timestamp": "2026-01-01T14:30:00Z",
+  "bid": 187.12,
+  "ask": 187.18,
+  "last": 187.15,
+  "volume": 1000,
+  "source": "fixture"
+}
+```
+
+### `order.created`
+
+```json
+{
+  "eventId": "00000000-0000-0000-0000-000000000002",
+  "orderId": "00000000-0000-0000-0000-000000000003",
+  "userId": "00000000-0000-0000-0000-000000000004",
+  "symbol": "AAPL",
+  "side": "BUY",
+  "orderType": "MARKET",
+  "quantity": 10.000000,
+  "limitPrice": null,
+  "createdAt": "2026-01-01T14:30:01Z"
+}
+```
+
+### `order.filled`
+
+```json
+{
+  "eventId": "00000000-0000-0000-0000-000000000005",
+  "orderId": "00000000-0000-0000-0000-000000000003",
+  "fillId": "00000000-0000-0000-0000-000000000006",
+  "userId": "00000000-0000-0000-0000-000000000004",
+  "symbol": "AAPL",
+  "side": "BUY",
+  "quantity": 10.000000,
+  "price": 187.150000,
+  "fee": 0.00,
+  "filledAt": "2026-01-01T14:30:02Z"
+}
+```
+
+### `portfolio.updated`
+
+```json
+{
+  "eventId": "00000000-0000-0000-0000-000000000007",
+  "userId": "00000000-0000-0000-0000-000000000004",
+  "portfolioId": "00000000-0000-0000-0000-000000000008",
+  "totalEquity": 100000.00,
+  "cash": 98128.50,
+  "updatedAt": "2026-01-01T14:30:03Z"
+}
+```
+
+### `risk.updated`
+
+```json
+{
+  "eventId": "00000000-0000-0000-0000-000000000009",
+  "userId": "00000000-0000-0000-0000-000000000004",
+  "totalEquity": 100000.00,
+  "grossExposure": 1871.50,
+  "largestPositionPct": 0.0187,
+  "unrealizedPnl": 0.00,
+  "createdAt": "2026-01-01T14:30:04Z"
+}
+```
+
+### `audit.event`
+
+```json
+{
+  "eventId": "00000000-0000-0000-0000-000000000010",
+  "userId": "00000000-0000-0000-0000-000000000004",
+  "action": "ORDER_CREATED",
+  "requestId": "request-id",
+  "metadata": {
+    "symbol": "AAPL"
+  },
+  "createdAt": "2026-01-01T14:30:05Z"
 }
 ```
 

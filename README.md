@@ -56,6 +56,8 @@ The backend echoes or generates `X-Request-ID` for request tracing and uses the 
 
 Latest quote cache entries are stored in Redis under keys like `latest_quote:AAPL`; the cached JSON payload includes quote timestamp metadata so callers can detect stale prices before falling back to PostgreSQL.
 
+Backend event publishing is configured for Redpanda/Kafka-compatible topics including `market.tick`, `order.created`, `order.filled`, `portfolio.updated`, `risk.updated`, and `audit.event`.
+
 Implemented auth endpoints:
 
 - `POST /api/auth/register`
