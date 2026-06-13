@@ -13,6 +13,8 @@ def test_replay_parser_uses_settings_defaults() -> None:
 		replay_speed=2.0,
 		data_path=Path("data/sample_ticks.csv"),
 		log_level="DEBUG",
+		dry_run=True,
+		producer_flush_timeout_seconds=5,
 	)
 
 	args = build_parser(settings).parse_args(["replay"])
@@ -22,6 +24,8 @@ def test_replay_parser_uses_settings_defaults() -> None:
 	assert args.bootstrap_servers == "localhost:19092"
 	assert args.topic == "market.tick"
 	assert args.speed == 2.0
+	assert args.dry_run is True
+	assert args.flush_timeout == 5
 
 
 def test_positive_float_rejects_zero() -> None:
@@ -36,6 +40,8 @@ def test_run_replay_rejects_missing_file(tmp_path: Path) -> None:
 		replay_speed=1.0,
 		data_path=tmp_path / "missing.csv",
 		log_level="INFO",
+		dry_run=True,
+		producer_flush_timeout_seconds=10,
 	)
 	args = build_parser(settings).parse_args(["replay"])
 
@@ -52,6 +58,8 @@ def test_run_replay_accepts_existing_file(tmp_path: Path) -> None:
 		replay_speed=1.0,
 		data_path=replay_file,
 		log_level="INFO",
+		dry_run=True,
+		producer_flush_timeout_seconds=10,
 	)
 	args = build_parser(settings).parse_args(["replay"])
 

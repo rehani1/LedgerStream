@@ -12,6 +12,8 @@ class MarketDataSettings:
 	replay_speed: float
 	data_path: Path
 	log_level: str
+	dry_run: bool
+	producer_flush_timeout_seconds: float
 
 	@classmethod
 	def from_env(cls) -> "MarketDataSettings":
@@ -22,4 +24,6 @@ class MarketDataSettings:
 			replay_speed=float(os.getenv("MARKET_DATA_REPLAY_SPEED", "1.0")),
 			data_path=Path(os.getenv("MARKET_DATA_FILE", "data/sample_ticks.csv")),
 			log_level=os.getenv("MARKET_DATA_LOG_LEVEL", "INFO"),
+			dry_run=os.getenv("MARKET_DATA_DRY_RUN", "false").lower() == "true",
+			producer_flush_timeout_seconds=float(os.getenv("MARKET_DATA_PRODUCER_FLUSH_TIMEOUT_SECONDS", "10")),
 		)

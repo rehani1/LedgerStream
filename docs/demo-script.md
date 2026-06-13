@@ -32,7 +32,11 @@ Deterministic market-data fixtures are available at `workers/market-data/data/sa
 
 ```bash
 cd workers/market-data
-PYTHONPATH=src python -m ledgerstream_market_data replay --file data/sample_ticks.csv
+PYTHONPATH=src python -m ledgerstream_market_data replay --file data/sample_ticks.csv --dry-run
 ```
 
-Publishing those ticks to Redpanda is implemented in the next worker increment.
+To publish those ticks to Redpanda locally, run:
+
+```bash
+docker compose --profile worker up --build market-data-worker
+```
