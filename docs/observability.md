@@ -16,7 +16,9 @@ LedgerStream should be inspectable through health checks, structured logs, Prome
 
 ## Planned Logs
 
-Backend logs should be structured JSON where practical and include request ID, method, path, status, latency, and safe contextual identifiers such as user ID, order ID, and symbol.
+Backend logs use Spring Boot structured JSON logging in the local profile through `logging.structured.format.console=logstash`. Request IDs are stored in MDC as `requestId` and echoed in the `X-Request-ID` header. Future domain code should add safe contextual MDC fields such as `userId`, `orderId`, and `symbol` around the smallest useful scope and must not log secrets or tokens.
+
+The structured logging format can be changed with `BACKEND_LOG_FORMAT`. Supported Spring Boot structured formats include `logstash`, `ecs`, and `gelf`.
 
 ## TODO
 

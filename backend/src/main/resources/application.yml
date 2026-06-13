@@ -32,3 +32,39 @@ logging:
   level:
     root: INFO
     com.ledgerstream: INFO
+
+ledgerstream:
+  cors:
+    allowed-origins: ${BACKEND_CORS_ALLOWED_ORIGINS:http://localhost:5173}
+    allowed-methods:
+      - GET
+      - POST
+      - PUT
+      - PATCH
+      - DELETE
+      - OPTIONS
+    allowed-headers:
+      - Authorization
+      - Content-Type
+      - Idempotency-Key
+      - X-Request-ID
+    exposed-headers:
+      - X-Request-ID
+    allow-credentials: true
+    max-age: 3600s
+  jwt:
+    issuer: ${BACKEND_JWT_ISSUER:ledgerstream-local}
+    secret: ${BACKEND_JWT_SECRET:replace-with-local-development-secret}
+    access-token-ttl: ${BACKEND_JWT_ACCESS_TOKEN_TTL:15m}
+    refresh-token-ttl: ${BACKEND_JWT_REFRESH_TOKEN_TTL:7d}
+  redis:
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
+    latest-quote-key-prefix: ${BACKEND_REDIS_LATEST_QUOTE_PREFIX:latest_quote}
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:19092}
+    consumer-group-id: ${BACKEND_KAFKA_CONSUMER_GROUP:ledgerstream-backend}
+  market-replay:
+    enabled: ${MARKET_DATA_REPLAY_ENABLED:false}
+    tick-topic: ${MARKET_DATA_TICK_TOPIC:market.tick}
+    replay-speed: ${MARKET_DATA_REPLAY_SPEED:1.0}

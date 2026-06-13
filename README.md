@@ -52,6 +52,8 @@ The initial public smoke endpoints are:
 - `GET /api/ping`
 - `GET /actuator/health`
 
+The backend echoes or generates `X-Request-ID` for request tracing and uses the same ID in standard API error responses.
+
 ### Local Service Ports
 
 | Service | Port | Notes |

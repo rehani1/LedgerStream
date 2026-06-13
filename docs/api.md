@@ -36,7 +36,7 @@ The API surface below is the target contract. Endpoints will be marked as implem
 
 ## Error Shape
 
-Planned standard error response:
+Standard error response:
 
 ```json
 {
@@ -48,6 +48,8 @@ Planned standard error response:
   "requestId": "request-id"
 }
 ```
+
+Clients may send `X-Request-ID` with a safe ASCII value up to 128 characters. The backend echoes it in the `X-Request-ID` response header and includes it in standard API errors. If the header is absent or invalid, the backend generates a UUID request ID.
 
 ## TODO
 

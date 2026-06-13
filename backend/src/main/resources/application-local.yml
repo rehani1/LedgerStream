@@ -9,3 +9,15 @@ management:
   endpoint:
     health:
       show-details: when_authorized
+
+logging:
+  structured:
+    format:
+      console: ${BACKEND_LOG_FORMAT:logstash}
+    json:
+      context:
+        include:
+          - requestId
+          - userId
+          - orderId
+          - symbol

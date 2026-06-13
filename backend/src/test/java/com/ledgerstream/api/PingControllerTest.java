@@ -2,9 +2,11 @@ package com.ledgerstream.api;
 
 import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.ledgerstream.web.RequestIdFilter;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -22,8 +24,9 @@ class PingControllerTest {
 
 	@Test
 	void pingReturnsBackendStatus() throws Exception {
-		mockMvc.perform(get("/api/ping"))
+		mockMvc.perform(get("/api/ping").header(RequestIdFilter.REQUEST_ID_HEADER, "ping-test-1"))
 			.andExpect(status().isOk())
+			.andExpect(header().string(RequestIdFilter.REQUEST_ID_HEADER, "ping-test-1"))
 			.andExpect(jsonPath("$.service").value("ledgerstream-backend"))
 			.andExpect(jsonPath("$.status").value("ok"))
 			.andExpect(jsonPath("$.timestamp", notNullValue()));
