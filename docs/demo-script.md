@@ -40,3 +40,5 @@ To publish those ticks to Redpanda locally, run:
 ```bash
 docker compose --profile worker up --build market-data-worker
 ```
+
+After logging in locally, open the dashboard to see supported symbols, latest quote rows, stream connection state, and the selected symbol price chart. The frontend reads historical quote data from `/api/symbols/{ticker}/history` and consumes the authenticated SSE quote stream with the current access token.

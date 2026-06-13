@@ -33,3 +33,15 @@ export type Quote = {
   volume: number | null;
   source: string;
 };
+
+export type QuoteHistoryResponse = {
+  symbol: string;
+  range: string;
+  limit: number;
+  ticks: Quote[];
+};
+
+export type QuoteStreamReady = {
+  symbols: string[];
+  connectedAt: string;
+};

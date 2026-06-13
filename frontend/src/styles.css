@@ -103,6 +103,11 @@ input {
   gap: 6px;
 }
 
+.dashboard-heading {
+  grid-template-columns: 1fr auto;
+  align-items: end;
+}
+
 .eyebrow {
   margin: 0;
   color: #6f4635;
@@ -179,6 +184,86 @@ h2 {
   color: #657167;
   font-size: 0.9rem;
   font-weight: 700;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(360px, 0.8fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.chart-panel {
+  border: 1px solid #dce2da;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(20, 32, 24, 0.04);
+}
+
+.chart-frame {
+  height: 360px;
+  padding: 12px 12px 18px;
+}
+
+.chart-empty {
+  display: grid;
+  height: 100%;
+  place-items: center;
+  color: #667268;
+  font-weight: 700;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  border: 1px solid #cfd7cc;
+  border-radius: 999px;
+  padding: 0 12px;
+  background: #ffffff;
+  color: #4f5c53;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.status-pill span {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #9aa59d;
+}
+
+.status-live span {
+  background: #138a61;
+}
+
+.status-connecting span {
+  background: #c68124;
+}
+
+.status-error span {
+  background: #b43b2d;
+}
+
+.ticker-button {
+  min-height: 32px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 0 9px;
+  background: #edf3ee;
+  color: #0d5c45;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.ticker-button[aria-pressed="true"] {
+  border-color: #8db69d;
+  background: #dcebe1;
+}
+
+.selected-row td {
+  background: #fbfdf9;
 }
 
 table {
@@ -335,5 +420,14 @@ th {
 
   .metric-grid {
     grid-template-columns: 1fr;
+  }
+
+  .dashboard-heading,
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .chart-frame {
+    height: 300px;
   }
 }
