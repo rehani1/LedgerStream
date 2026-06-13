@@ -25,3 +25,7 @@ logging:
   level:
     org.springframework.boot.autoconfigure: WARN
     org.springframework.security: WARN
+
+ledgerstream:
+  kafka:
+    market-tick-consumer-enabled: false

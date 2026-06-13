@@ -58,6 +58,8 @@ Latest quote cache entries are stored in Redis under keys like `latest_quote:AAP
 
 Backend event publishing is configured for Redpanda/Kafka-compatible topics including `market.tick`, `order.created`, `order.filled`, `portfolio.updated`, `risk.updated`, and `audit.event`.
 
+The backend consumes `market.tick` events, persists historical ticks to PostgreSQL, and refreshes Redis latest quote cache entries. Duplicate ticks with the same symbol, timestamp, and source are skipped for historical storage but still update the hot cache.
+
 Implemented auth endpoints:
 
 - `POST /api/auth/register`

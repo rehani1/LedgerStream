@@ -13,12 +13,18 @@ import org.junit.jupiter.api.Test;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.ProducerFactory;
+import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.kafka.support.serializer.JsonSerializer;
 
 class EventStreamingConfigurationTest {
 
 	private final EventStreamingConfiguration configuration = new EventStreamingConfiguration();
-	private final KafkaProperties kafkaProperties = new KafkaProperties("localhost:19092", "ledgerstream-test");
+	private final KafkaProperties kafkaProperties = new KafkaProperties(
+		"localhost:19092",
+		"ledgerstream-test",
+		false,
+		false
+	);
 
 	@Test
 	void producerFactoryUsesJsonAndIdempotentAcks() {
@@ -45,6 +51,8 @@ class EventStreamingConfigurationTest {
 		assertThat(consumerFactory.getConfigurationProperties())
 			.containsEntry(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:19092")
 			.containsEntry(ConsumerConfig.GROUP_ID_CONFIG, "ledgerstream-test")
-			.containsEntry(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
+			.containsEntry(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest")
+			.doesNotContainKey(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG)
+			.doesNotContainKey(JsonDeserializer.TRUSTED_PACKAGES);
 	}
 }

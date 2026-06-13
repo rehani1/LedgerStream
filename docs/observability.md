@@ -7,12 +7,18 @@ LedgerStream should be inspectable through health checks, structured logs, Prome
 ## Planned Metrics
 
 - API request rate, latency, and error count.
-- Market ticks consumed and failed.
 - Orders created, filled, rejected, and cancelled.
 - Active quote stream clients.
 - Quote cache hits and misses.
 - Portfolio and risk calculation latency.
 - JVM runtime metrics.
+
+## Implemented Metrics
+
+The backend records market ingestion counters:
+
+- `ledgerstream_market_ticks_consumed_total`: accepted `market.tick` events applied to PostgreSQL and Redis. Duplicate historical rows are skipped, but the latest quote cache is still refreshed and the event is counted as consumed.
+- `ledgerstream_market_ticks_failed_total`: malformed, unknown-symbol, or infrastructure-failed `market.tick` events.
 
 ## Health Checks
 

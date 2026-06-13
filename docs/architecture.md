@@ -59,7 +59,9 @@ Configured topics:
 | `risk.updated` | Risk snapshot updates. |
 | `audit.event` | Security and financial audit events. |
 
-A disabled-by-default market tick connectivity listener is available through `BACKEND_KAFKA_CONNECTIVITY_CONSUMER_ENABLED=true` for local broker wiring checks. Real tick persistence is implemented in the market ingestion unit.
+A disabled-by-default market tick connectivity listener is available through `BACKEND_KAFKA_CONNECTIVITY_CONSUMER_ENABLED=true` for local broker wiring checks.
+
+The backend now consumes `market.tick` events through the `marketTickKafkaListenerContainerFactory`. Each accepted tick resolves its symbol, writes a historical `price_ticks` row unless the same `(symbol, timestamp, source)` already exists, and refreshes the Redis latest quote cache. Invalid payloads and unknown symbols are rejected and counted without retrying; unexpected infrastructure failures are allowed to propagate to Kafka retry/error handling. The consumer can be disabled with `BACKEND_MARKET_TICK_CONSUMER_ENABLED=false`.
 
 ## Market Data Worker
 

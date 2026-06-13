@@ -57,9 +57,7 @@ public class EventStreamingConfiguration {
 		config.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaProperties.bootstrapServers());
 		config.put(ConsumerConfig.GROUP_ID_CONFIG, kafkaProperties.consumerGroupId());
 		config.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-		config.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class);
 		config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
-		config.put(JsonDeserializer.TRUSTED_PACKAGES, "com.ledgerstream.events");
 
 		JsonDeserializer<MarketTickEvent> valueDeserializer = new JsonDeserializer<>(
 			MarketTickEvent.class,

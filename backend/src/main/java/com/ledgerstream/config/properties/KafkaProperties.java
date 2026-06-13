@@ -8,6 +8,8 @@ import org.springframework.validation.annotation.Validated;
 @ConfigurationProperties(prefix = "ledgerstream.kafka")
 public record KafkaProperties(
 	@NotBlank String bootstrapServers,
-	@NotBlank String consumerGroupId
+	@NotBlank String consumerGroupId,
+	boolean connectivityConsumerEnabled,
+	boolean marketTickConsumerEnabled
 ) {
 }
