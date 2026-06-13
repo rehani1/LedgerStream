@@ -54,6 +54,8 @@ The initial public smoke endpoints are:
 
 The backend echoes or generates `X-Request-ID` for request tracing and uses the same ID in standard API error responses.
 
+Latest quote cache entries are stored in Redis under keys like `latest_quote:AAPL`; the cached JSON payload includes quote timestamp metadata so callers can detect stale prices before falling back to PostgreSQL.
+
 Implemented auth endpoints:
 
 - `POST /api/auth/register`

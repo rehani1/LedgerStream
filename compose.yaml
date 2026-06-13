@@ -18,6 +18,7 @@ services:
       BACKEND_LOG_FORMAT: ${BACKEND_LOG_FORMAT:-logstash}
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      BACKEND_REDIS_LATEST_QUOTE_PREFIX: ${BACKEND_REDIS_LATEST_QUOTE_PREFIX:-latest_quote}
     ports:
       - "${BACKEND_PORT:-8080}:8080"
     depends_on:

@@ -38,7 +38,11 @@ CSV replay
 
 ## Backend Foundation
 
-The backend starts as a Spring Boot 3 application with Web, Security, Validation, JPA, Flyway, Kafka, Actuator, Prometheus, PostgreSQL, and Testcontainers dependencies. The first exposed endpoints are `/api/ping` and `/actuator/health`; domain endpoints will be added behind authentication in later increments.
+The backend starts as a Spring Boot 3 application with Web, Security, Validation, JPA, Redis, Flyway, Kafka, Actuator, Prometheus, PostgreSQL, and Testcontainers dependencies. The first exposed endpoints are `/api/ping` and `/actuator/health`; domain endpoints are added behind authentication as their backing services land.
+
+## Redis Cache
+
+The backend has a Redis-backed latest quote cache abstraction. Latest quote entries use the key pattern `latest_quote:{SYMBOL}` by default, with symbols normalized to uppercase. Values are JSON payloads that include the quote timestamp, bid, ask, last price, volume, and source. No TTL is applied yet because stale detection should use the embedded timestamp and future quote APIs can fall back to PostgreSQL.
 
 ## TODO
 
