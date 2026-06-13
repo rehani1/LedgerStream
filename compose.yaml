@@ -36,6 +36,31 @@ services:
       timeout: 5s
       retries: 10
 
+  market-data-worker:
+    build:
+      context: ./workers/market-data
+    profiles:
+      - worker
+    environment:
+      MARKET_DATA_KAFKA_BOOTSTRAP_SERVERS: ${MARKET_DATA_KAFKA_BOOTSTRAP_SERVERS:-redpanda:9092}
+      MARKET_DATA_TICK_TOPIC: ${MARKET_DATA_TICK_TOPIC:-market.tick}
+      MARKET_DATA_REPLAY_SPEED: ${MARKET_DATA_REPLAY_SPEED:-1.0}
+      MARKET_DATA_FILE: ${MARKET_DATA_FILE:-data/sample_ticks.csv}
+      MARKET_DATA_LOG_LEVEL: ${MARKET_DATA_LOG_LEVEL:-INFO}
+    command:
+      - python
+      - -m
+      - ledgerstream_market_data
+      - --log-level
+      - ${MARKET_DATA_LOG_LEVEL:-INFO}
+      - replay
+      - --file
+      - ${MARKET_DATA_FILE:-data/sample_ticks.csv}
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    restart: "no"
+
   postgres:
     image: postgres:16-alpine
     environment:

@@ -1,0 +1,10 @@
+[project]
+name = "ledgerstream-market-data"
+version = "0.1.0"
+description = "Market-data replay worker for LedgerStream"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-q"

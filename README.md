@@ -66,6 +66,25 @@ Implemented auth endpoints:
 - `POST /api/auth/logout`
 - `GET /api/me`
 
+### Market Data Worker
+
+The market-data worker is a Python service scaffold for deterministic replay.
+
+```bash
+cd workers/market-data
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -r requirements.txt
+pytest
+python -m ledgerstream_market_data replay --file data/sample_ticks.csv
+```
+
+The Compose service is behind the `worker` profile until replay fixtures and publishing are implemented:
+
+```bash
+docker compose --profile worker up --build market-data-worker
+```
+
 ### Demo Data
 
 Supported symbols are seeded by Flyway: `AAPL`, `MSFT`, `NVDA`, `TSLA`, and `SPY`.
