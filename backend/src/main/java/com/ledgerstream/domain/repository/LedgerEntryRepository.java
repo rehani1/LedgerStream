@@ -10,4 +10,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface LedgerEntryRepository extends JpaRepository<LedgerEntry, UUID> {
 
 	Page<LedgerEntry> findByUserIdOrderByCreatedAtDesc(UUID userId, Pageable pageable);
+
+	boolean existsByIdAndUserId(UUID id, UUID userId);
 }

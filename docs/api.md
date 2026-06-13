@@ -30,7 +30,7 @@ The API surface below is the target contract. Endpoints will be marked as implem
 | Risk | `GET` | `/api/portfolio/risk/history` | User | Historical risk snapshots. |
 | Admin | `POST` | `/api/admin/market/replay/start` | Admin | Start deterministic replay control. |
 | Admin | `POST` | `/api/admin/market/replay/stop` | Admin | Stop deterministic replay control. |
-| Admin | `GET` | `/api/admin/queue-health` | Admin | Queue and consumer health. |
+| Admin | `GET` | `/api/admin/queue-health` | Admin | Implemented. Returns current queue-health integration status. |
 | Observability | `GET` | `/actuator/health` | Public or internal | Health checks. |
 | Observability | `GET` | `/actuator/prometheus` | Internal | Prometheus metrics. |
 
@@ -87,6 +87,18 @@ Refresh and logout accept the same body shape:
 ```
 
 Refresh tokens are opaque values returned only at issue time. The backend stores only a SHA-256 hash, rotates the token on every successful refresh, rejects expired tokens, and treats reuse of an already-revoked refresh token as a suspicious event that revokes remaining active refresh tokens for that user.
+
+All non-auth API endpoints require a bearer access token unless explicitly marked public. `/api/admin/**` endpoints require a user with the `ADMIN` role.
+
+`GET /api/admin/queue-health` currently returns an honest integration status until Kafka consumers are implemented:
+
+```json
+{
+  "status": "not_configured",
+  "checkedAt": "2026-01-01T00:00:00Z",
+  "topics": {}
+}
+```
 
 ## TODO
 

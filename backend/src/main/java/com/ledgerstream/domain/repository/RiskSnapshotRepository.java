@@ -13,4 +13,6 @@ public interface RiskSnapshotRepository extends JpaRepository<RiskSnapshot, UUID
 	Optional<RiskSnapshot> findFirstByUserIdOrderByCreatedAtDesc(UUID userId);
 
 	Page<RiskSnapshot> findByUserIdOrderByCreatedAtDesc(UUID userId, Pageable pageable);
+
+	boolean existsByIdAndUserId(UUID id, UUID userId);
 }

@@ -10,8 +10,8 @@ LedgerStream is a paper-trading system only. It must not place real brokerage or
 - JWT access tokens. Implemented with HMAC SHA-256 signing through Spring Security JOSE.
 - Refresh token rotation. Implemented for register, login, and refresh flows.
 - Hashed refresh token storage. Implemented with opaque refresh tokens and stored SHA-256 hashes.
-- Role-based authorization with `USER` and `ADMIN` roles.
-- User-scoped ownership checks for orders, positions, portfolio, ledger, and risk data.
+- Role-based authorization with `USER` and `ADMIN` roles. Implemented for admin route protection.
+- User-scoped ownership checks for orders, positions, portfolio, ledger, and risk data. Implemented as reusable backend access-control helpers for future financial controllers.
 - Restricted CORS based on configured frontend origin.
 - Input validation for all public request bodies.
 - Rate limiting for authentication and order creation.
@@ -33,6 +33,13 @@ Demo account seeding is disabled by default and only available under `local` or 
 - `GET /api/me` requires a valid authenticated principal.
 - Access tokens include user ID as `sub`, plus email and role claims.
 
+## Implemented Authorization Model
+
+- Every non-auth API endpoint requires authentication unless explicitly marked public.
+- `/api/admin/**` requires `ADMIN`; normal users receive `403`.
+- Ownership helpers verify order, portfolio, position, ledger, and risk snapshot access through user-scoped repository checks.
+- Missing or cross-user financial resources are reported as `404` to avoid leaking another user's resource existence.
+
 ## Token Storage Tradeoff
 
 Refresh tokens are currently returned in response bodies for API and testability. The frontend implementation must decide whether to keep them in memory, move them to secure HTTP-only cookies, or document another MVP-compatible storage tradeoff.
@@ -41,7 +48,6 @@ Refresh tokens are currently returned in response bodies for API and testability
 
 - Add threat model.
 - Add concrete auth flow once implemented.
-- Add authorization test coverage notes.
 - Add dependency scanning configuration.
 - Add secrets-management instructions.
 - Add known limitations.

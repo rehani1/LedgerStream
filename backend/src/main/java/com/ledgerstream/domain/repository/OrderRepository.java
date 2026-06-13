@@ -14,6 +14,8 @@ public interface OrderRepository extends JpaRepository<TradeOrder, UUID> {
 
 	Optional<TradeOrder> findByIdAndUserId(UUID id, UUID userId);
 
+	boolean existsByIdAndUserId(UUID id, UUID userId);
+
 	Optional<TradeOrder> findByUserIdAndIdempotencyKey(UUID userId, String idempotencyKey);
 
 	List<TradeOrder> findBySymbolTickerAndStatus(String ticker, OrderStatus status);
