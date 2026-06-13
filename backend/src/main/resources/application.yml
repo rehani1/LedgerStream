@@ -68,3 +68,8 @@ ledgerstream:
     enabled: ${MARKET_DATA_REPLAY_ENABLED:false}
     tick-topic: ${MARKET_DATA_TICK_TOPIC:market.tick}
     replay-speed: ${MARKET_DATA_REPLAY_SPEED:1.0}
+  demo-seed:
+    enabled: ${DEMO_SEED_ENABLED:false}
+    email: ${DEMO_USER_EMAIL:demo@example.com}
+    password: ${DEMO_USER_PASSWORD:replace-with-local-demo-password}
+    initial-cash: ${DEMO_USER_INITIAL_CASH:100000.00}

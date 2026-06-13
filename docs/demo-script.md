@@ -23,3 +23,7 @@ Show the full paper-trading path in 60 to 90 seconds once the MVP is implemented
 - Add screenshot links.
 - Add video link or final narration.
 - Add fallback local demo commands.
+
+## Local Demo Data
+
+Set `DEMO_SEED_ENABLED=true` in a local `.env` file to create the configured demo account and initial cash balance. Supported symbols are available after Flyway migrations run.

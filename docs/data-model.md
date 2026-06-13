@@ -43,6 +43,10 @@
 - `price_ticks(symbol_id, ts, source)` is unique for deterministic replay data.
 - Ledger entry types are constrained to known accounting actions.
 
+## Seed Data
+
+Flyway seeds deterministic symbol rows for `AAPL`, `MSFT`, `NVDA`, `TSLA`, and `SPY` using fixed UUIDs. Demo account seeding is handled by application code and is disabled by default; it only runs in `local` or `dev` profiles when `ledgerstream.demo-seed.enabled=true`.
+
 ## Indexes
 
 - `price_ticks(symbol_id, ts DESC)` supports recent quote history lookups.

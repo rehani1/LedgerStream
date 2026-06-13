@@ -17,6 +17,10 @@ LedgerStream is a paper-trading system only. It must not place real brokerage or
 - Audit events for security and financial actions.
 - Sanitized structured logs with request IDs.
 
+## Demo Credentials
+
+Demo account seeding is disabled by default and only available under `local` or `dev` Spring profiles when explicitly enabled. The seed password is read from environment configuration, hashed with BCrypt before storage, and never logged.
+
 ## Token Storage Tradeoff
 
 The final frontend implementation will document whether refresh tokens use secure cookies or another MVP-compatible strategy. Any fallback tradeoff must be explicit.

@@ -54,6 +54,12 @@ The initial public smoke endpoints are:
 
 The backend echoes or generates `X-Request-ID` for request tracing and uses the same ID in standard API error responses.
 
+### Demo Data
+
+Supported symbols are seeded by Flyway: `AAPL`, `MSFT`, `NVDA`, `TSLA`, and `SPY`.
+
+Demo account seeding is disabled by default. For local development only, set `DEMO_SEED_ENABLED=true` and provide `DEMO_USER_EMAIL`, `DEMO_USER_PASSWORD`, and `DEMO_USER_INITIAL_CASH`.
+
 ### Local Service Ports
 
 | Service | Port | Notes |
