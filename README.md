@@ -37,6 +37,19 @@ docker compose up --build
 
 This repository is currently in the initial scaffold stage. Service-specific setup commands will be added as the backend, worker, frontend, and local infrastructure are implemented.
 
+### Local Service Ports
+
+| Service | Port | Notes |
+| --- | --- | --- |
+| PostgreSQL | `5432` | Database for core platform state. |
+| Redis | `6379` | Hot quote cache and future rate-limiting state. |
+| Redpanda broker | `19092` | Kafka-compatible external listener for local tools. |
+| Redpanda admin | `9644` | Admin and health interface. |
+| Prometheus | `9090` | Metrics UI and scrape storage. |
+| Grafana | `3000` | Dashboard UI; local default user is `admin`. |
+| Backend | `8080` | Planned Spring Boot API port. |
+| Frontend | `5173` | Planned Vite dev server port. |
+
 ## Documentation
 
 - [Architecture](docs/architecture.md)
