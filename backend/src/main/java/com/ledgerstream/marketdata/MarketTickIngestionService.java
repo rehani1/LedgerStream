@@ -10,7 +10,9 @@ import com.ledgerstream.domain.repository.PriceTickRepository;
 import com.ledgerstream.domain.repository.SymbolRepository;
 import com.ledgerstream.events.MarketTickEvent;
 import com.ledgerstream.quotes.CachedQuote;
+import com.ledgerstream.quotes.QuoteStreamService;
 import com.ledgerstream.quotes.RedisQuoteCacheService;
+import com.ledgerstream.quotes.dto.QuoteResponse;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.stereotype.Service;
@@ -22,6 +24,7 @@ public class MarketTickIngestionService {
 	private final SymbolRepository symbolRepository;
 	private final PriceTickRepository priceTickRepository;
 	private final RedisQuoteCacheService quoteCacheService;
+	private final QuoteStreamService quoteStreamService;
 	private final Counter consumedCounter;
 	private final Counter failedCounter;
 
@@ -29,11 +32,13 @@ public class MarketTickIngestionService {
 		SymbolRepository symbolRepository,
 		PriceTickRepository priceTickRepository,
 		RedisQuoteCacheService quoteCacheService,
+		QuoteStreamService quoteStreamService,
 		MeterRegistry meterRegistry
 	) {
 		this.symbolRepository = symbolRepository;
 		this.priceTickRepository = priceTickRepository;
 		this.quoteCacheService = quoteCacheService;
+		this.quoteStreamService = quoteStreamService;
 		this.consumedCounter = Counter.builder("ledgerstream_market_ticks_consumed_total")
 			.description("Market tick events consumed and applied by the backend")
 			.register(meterRegistry);
@@ -53,7 +58,7 @@ public class MarketTickIngestionService {
 				priceTickRepository.save(toPriceTick(symbol, tick));
 			}
 
-			quoteCacheService.putLatestQuote(new CachedQuote(
+			CachedQuote cachedQuote = new CachedQuote(
 				tick.symbol(),
 				tick.timestamp(),
 				tick.bid(),
@@ -61,7 +66,9 @@ public class MarketTickIngestionService {
 				tick.last(),
 				tick.volume(),
 				tick.source()
-			));
+			);
+			quoteCacheService.putLatestQuote(cachedQuote);
+			quoteStreamService.broadcast(QuoteResponse.from(cachedQuote));
 			consumedCounter.increment();
 		} catch (MarketTickRejectedException ex) {
 			failedCounter.increment();

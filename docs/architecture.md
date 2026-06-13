@@ -46,6 +46,8 @@ The backend has a Redis-backed latest quote cache abstraction. Latest quote entr
 
 Symbol and quote REST APIs are authenticated. Latest quote reads check Redis first and fall back to the newest persisted tick in PostgreSQL. Historical quote reads are bounded by a supported range and a maximum limit of 500 ticks.
 
+The quote stream endpoint uses Server-Sent Events. Clients subscribe to up to 25 symbols per connection. The backend keeps an in-memory subscriber registry and broadcasts accepted `market.tick` updates after persistence and Redis cache refresh. This is correct for the single-backend MVP; multi-instance deployment will need shared pub/sub fanout or sticky routing.
+
 ## Event Streaming
 
 Backend event streaming is configured through Spring Kafka for Redpanda-compatible brokers. Producer JSON serialization is configured with idempotent producer settings and `acks=all`. Type headers are disabled so worker and frontend-adjacent tooling can consume plain JSON by topic contract.

@@ -18,7 +18,7 @@ The API surface below is the target contract. Endpoints will be marked as implem
 | Symbols | `GET` | `/api/symbols/{ticker}` | User | Implemented. Return symbol metadata. |
 | Quotes | `GET` | `/api/symbols/{ticker}/quote` | User | Implemented. Return latest quote from Redis with database fallback. |
 | Quotes | `GET` | `/api/symbols/{ticker}/history?range=1d&limit=500` | User | Implemented. Return historical ticks with bounded result size. |
-| Streaming | `GET` | `/api/stream/quotes?symbols=AAPL,MSFT` | User | SSE quote stream. |
+| Streaming | `GET` | `/api/stream/quotes?symbols=AAPL,MSFT` | User | Implemented. SSE quote stream. |
 | Orders | `POST` | `/api/orders` | User | Requires `Idempotency-Key`. |
 | Orders | `GET` | `/api/orders` | User | User-scoped order history. |
 | Orders | `GET` | `/api/orders/{id}` | User | User-scoped order detail. |
@@ -144,6 +144,27 @@ Ticker path variables are normalized to uppercase and must be 1 to 16 characters
   ]
 }
 ```
+
+## Real-Time Quote Stream
+
+`GET /api/stream/quotes?symbols=AAPL,MSFT` returns `text/event-stream`. The `symbols` parameter is required, comma-separated, deduplicated, and capped at 25 symbols per stream. Each symbol must already exist in the symbol catalog.
+
+The stream starts with a `ready` event:
+
+```text
+event: ready
+data: {"symbols":["AAPL","MSFT"],"connectedAt":"2026-01-02T14:35:00Z"}
+```
+
+Quote events use the same quote payload as the latest quote endpoint:
+
+```text
+id: AAPL:2026-01-02T14:34:00Z
+event: quote
+data: {"symbol":"AAPL","timestamp":"2026-01-02T14:34:00Z","bid":187.360000,"ask":187.480000,"last":187.420000,"volume":136200,"source":"fixture"}
+```
+
+The backend sends available latest quotes immediately after subscription and broadcasts new `market.tick` updates after they are accepted by the ingestion path.
 
 `GET /api/admin/queue-health` currently returns the configured event-topic contract. It does not claim live broker connectivity yet:
 

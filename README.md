@@ -74,6 +74,7 @@ Implemented symbol and quote endpoints:
 - `GET /api/symbols/{ticker}`
 - `GET /api/symbols/{ticker}/quote`
 - `GET /api/symbols/{ticker}/history?range=1d&limit=500`
+- `GET /api/stream/quotes?symbols=AAPL,MSFT`
 
 ### Market Data Worker
 

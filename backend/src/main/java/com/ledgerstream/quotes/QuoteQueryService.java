@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.regex.Pattern;
 
 import com.ledgerstream.domain.model.PriceTick;
 import com.ledgerstream.domain.model.Symbol;
@@ -28,7 +27,6 @@ import org.springframework.web.server.ResponseStatusException;
 public class QuoteQueryService {
 
 	private static final Logger log = LoggerFactory.getLogger(QuoteQueryService.class);
-	private static final Pattern TICKER_PATTERN = Pattern.compile("[A-Z0-9.]{1,16}");
 	private static final Map<String, Duration> SUPPORTED_RANGES = Map.of(
 		"5m", Duration.ofMinutes(5),
 		"15m", Duration.ofMinutes(15),
@@ -69,7 +67,7 @@ public class QuoteQueryService {
 
 	@Transactional(readOnly = true)
 	public QuoteResponse getLatestQuote(String ticker) {
-		String normalizedTicker = normalizeTicker(ticker);
+		String normalizedTicker = TickerNormalizer.normalizeTicker(ticker);
 		requireSymbol(normalizedTicker);
 
 		Optional<CachedQuote> cachedQuote = latestQuoteFromCache(normalizedTicker);
@@ -84,7 +82,7 @@ public class QuoteQueryService {
 
 	@Transactional(readOnly = true)
 	public QuoteHistoryResponse getHistory(String ticker, String range, int limit) {
-		String normalizedTicker = normalizeTicker(ticker);
+		String normalizedTicker = TickerNormalizer.normalizeTicker(ticker);
 		requireSymbol(normalizedTicker);
 		String normalizedRange = normalizeRange(range);
 		Instant after = Instant.now(clock).minus(SUPPORTED_RANGES.get(normalizedRange));
@@ -106,20 +104,9 @@ public class QuoteQueryService {
 	}
 
 	private Symbol requireSymbol(String ticker) {
-		String normalizedTicker = normalizeTicker(ticker);
+		String normalizedTicker = TickerNormalizer.normalizeTicker(ticker);
 		return symbolRepository.findByTicker(normalizedTicker)
 			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Symbol not found"));
-	}
-
-	private String normalizeTicker(String ticker) {
-		if (ticker == null || ticker.isBlank()) {
-			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ticker is required");
-		}
-		String normalizedTicker = ticker.trim().toUpperCase(Locale.ROOT);
-		if (!TICKER_PATTERN.matcher(normalizedTicker).matches()) {
-			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ticker is invalid");
-		}
-		return normalizedTicker;
 	}
 
 	private String normalizeRange(String range) {

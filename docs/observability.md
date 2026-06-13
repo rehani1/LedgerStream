@@ -19,6 +19,9 @@ The backend records market ingestion counters:
 
 - `ledgerstream_market_ticks_consumed_total`: accepted `market.tick` events applied to PostgreSQL and Redis. Duplicate historical rows are skipped, but the latest quote cache is still refreshed and the event is counted as consumed.
 - `ledgerstream_market_ticks_failed_total`: malformed, unknown-symbol, or infrastructure-failed `market.tick` events.
+- `ledgerstream_quote_stream_clients`: active SSE quote stream clients on the current backend instance.
+- `ledgerstream_quote_stream_events_total`: quote SSE events sent by the backend.
+- `ledgerstream_quote_stream_send_failures_total`: quote SSE send failures that caused the backend to close a stream.
 
 ## Health Checks
 

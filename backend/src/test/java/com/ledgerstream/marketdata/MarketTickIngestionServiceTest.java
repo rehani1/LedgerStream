@@ -20,7 +20,9 @@ import com.ledgerstream.domain.repository.PriceTickRepository;
 import com.ledgerstream.domain.repository.SymbolRepository;
 import com.ledgerstream.events.MarketTickEvent;
 import com.ledgerstream.quotes.CachedQuote;
+import com.ledgerstream.quotes.QuoteStreamService;
 import com.ledgerstream.quotes.RedisQuoteCacheService;
+import com.ledgerstream.quotes.dto.QuoteResponse;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,6 +45,9 @@ class MarketTickIngestionServiceTest {
 	@Mock
 	private RedisQuoteCacheService quoteCacheService;
 
+	@Mock
+	private QuoteStreamService quoteStreamService;
+
 	private SimpleMeterRegistry meterRegistry;
 	private MarketTickIngestionService ingestionService;
 
@@ -53,6 +58,7 @@ class MarketTickIngestionServiceTest {
 			symbolRepository,
 			priceTickRepository,
 			quoteCacheService,
+			quoteStreamService,
 			meterRegistry
 		);
 	}
@@ -84,6 +90,7 @@ class MarketTickIngestionServiceTest {
 		assertThat(cachedQuote.symbol()).isEqualTo("AAPL");
 		assertThat(cachedQuote.timestamp()).isEqualTo(TIMESTAMP);
 		assertThat(cachedQuote.last()).isEqualByComparingTo("187.150000");
+		verify(quoteStreamService).broadcast(any(QuoteResponse.class));
 		assertThat(counter("ledgerstream_market_ticks_consumed_total")).isEqualTo(1.0);
 		assertThat(counter("ledgerstream_market_ticks_failed_total")).isZero();
 	}
@@ -100,6 +107,7 @@ class MarketTickIngestionServiceTest {
 
 		verify(priceTickRepository, never()).save(any());
 		verify(quoteCacheService).putLatestQuote(any(CachedQuote.class));
+		verify(quoteStreamService).broadcast(any(QuoteResponse.class));
 		assertThat(counter("ledgerstream_market_ticks_consumed_total")).isEqualTo(1.0);
 		assertThat(counter("ledgerstream_market_ticks_failed_total")).isZero();
 	}
