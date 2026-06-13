@@ -9,11 +9,11 @@ The API surface below is the target contract. Endpoints will be marked as implem
 | Area | Method | Path | Auth | Notes |
 | --- | --- | --- | --- | --- |
 | Smoke | `GET` | `/api/ping` | Public | Implemented. Returns backend status and server timestamp. |
-| Auth | `POST` | `/api/auth/register` | Public | Create a user and portfolio. |
-| Auth | `POST` | `/api/auth/login` | Public | Return access and refresh tokens. |
+| Auth | `POST` | `/api/auth/register` | Public | Implemented. Create a user, zero-cash portfolio, audit event, and JWT access token. |
+| Auth | `POST` | `/api/auth/login` | Public | Implemented. Return JWT access token for valid credentials. |
 | Auth | `POST` | `/api/auth/refresh` | Public | Rotate refresh token and issue a new access token. |
 | Auth | `POST` | `/api/auth/logout` | User | Revoke refresh token. |
-| Auth | `GET` | `/api/me` | User | Return current principal. |
+| Auth | `GET` | `/api/me` | User | Implemented. Return current JWT principal. |
 | Symbols | `GET` | `/api/symbols` | User | List supported symbols. |
 | Symbols | `GET` | `/api/symbols/{ticker}` | User | Return symbol metadata. |
 | Quotes | `GET` | `/api/symbols/{ticker}/quote` | User | Return latest quote from Redis with database fallback. |
@@ -51,10 +51,35 @@ Standard error response:
 
 Clients may send `X-Request-ID` with a safe ASCII value up to 128 characters. The backend echoes it in the `X-Request-ID` response header and includes it in standard API errors. If the header is absent or invalid, the backend generates a UUID request ID.
 
+## Authentication
+
+Implemented auth endpoints return this shape:
+
+```json
+{
+  "accessToken": "jwt",
+  "tokenType": "Bearer",
+  "expiresAt": "2026-01-01T00:15:00Z",
+  "user": {
+    "id": "00000000-0000-0000-0000-000000000000",
+    "email": "demo@example.com",
+    "role": "USER"
+  }
+}
+```
+
+Send authenticated requests with:
+
+```http
+Authorization: Bearer <accessToken>
+```
+
+Login failures return a generic `401` message and do not reveal whether an email exists.
+
 ## TODO
 
 - Add concrete request and response examples after endpoints are implemented.
-- Add authentication token behavior.
+- Add refresh token behavior.
 - Add idempotency semantics.
 - Add pagination parameters and defaults.
 - Add curl examples.

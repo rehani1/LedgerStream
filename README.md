@@ -54,6 +54,12 @@ The initial public smoke endpoints are:
 
 The backend echoes or generates `X-Request-ID` for request tracing and uses the same ID in standard API error responses.
 
+Implemented auth endpoints:
+
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `GET /api/me`
+
 ### Demo Data
 
 Supported symbols are seeded by Flyway: `AAPL`, `MSFT`, `NVDA`, `TSLA`, and `SPY`.
