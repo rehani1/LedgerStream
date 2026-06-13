@@ -8,8 +8,8 @@ LedgerStream is a paper-trading system only. It must not place real brokerage or
 
 - Password hashing with BCrypt. Implemented for registration and demo seeding.
 - JWT access tokens. Implemented with HMAC SHA-256 signing through Spring Security JOSE.
-- Refresh token rotation.
-- Hashed refresh token storage.
+- Refresh token rotation. Implemented for register, login, and refresh flows.
+- Hashed refresh token storage. Implemented with opaque refresh tokens and stored SHA-256 hashes.
 - Role-based authorization with `USER` and `ADMIN` roles.
 - User-scoped ownership checks for orders, positions, portfolio, ledger, and risk data.
 - Restricted CORS based on configured frontend origin.
@@ -24,17 +24,18 @@ Demo account seeding is disabled by default and only available under `local` or 
 
 ## Implemented Auth Model
 
-- `POST /api/auth/register` normalizes email, rejects duplicate email with `409`, stores a BCrypt password hash, creates a zero-cash portfolio, records an audit event, and returns a JWT access token.
-- `POST /api/auth/login` returns a JWT access token for valid credentials.
+- `POST /api/auth/register` normalizes email, rejects duplicate email with `409`, stores a BCrypt password hash, creates a zero-cash portfolio, records an audit event, and returns an access/refresh token pair.
+- `POST /api/auth/login` returns an access/refresh token pair for valid credentials.
+- `POST /api/auth/refresh` requires the current refresh token, revokes it, and returns a new access/refresh token pair.
+- Refresh token reuse is rejected and triggers revocation of remaining active refresh tokens for the user.
+- `POST /api/auth/logout` revokes the provided refresh token and is idempotent for unknown tokens.
 - Invalid login attempts return the same generic `401` response regardless of whether the email exists.
 - `GET /api/me` requires a valid authenticated principal.
 - Access tokens include user ID as `sub`, plus email and role claims.
 
-Refresh token rotation is not implemented yet; it is tracked as the next auth hardening increment.
-
 ## Token Storage Tradeoff
 
-The final frontend implementation will document whether refresh tokens use secure cookies or another MVP-compatible strategy. Any fallback tradeoff must be explicit.
+Refresh tokens are currently returned in response bodies for API and testability. The frontend implementation must decide whether to keep them in memory, move them to secure HTTP-only cookies, or document another MVP-compatible storage tradeoff.
 
 ## TODO
 

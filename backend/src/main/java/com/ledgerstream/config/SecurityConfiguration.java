@@ -32,6 +32,7 @@ public class SecurityConfiguration {
 				.requestMatchers(HttpMethod.GET, "/api/ping").permitAll()
 				.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 				.requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login").permitAll()
+				.requestMatchers(HttpMethod.POST, "/api/auth/refresh", "/api/auth/logout").permitAll()
 				.requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/prometheus").permitAll()
 				.anyRequest().authenticated());
 

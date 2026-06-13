@@ -4,6 +4,7 @@ import com.ledgerstream.auth.dto.AuthResponse;
 import com.ledgerstream.auth.dto.CurrentUserResponse;
 import com.ledgerstream.auth.dto.LoginRequest;
 import com.ledgerstream.auth.dto.RegisterRequest;
+import com.ledgerstream.auth.dto.RefreshTokenRequest;
 import com.ledgerstream.web.RequestIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -35,6 +36,17 @@ public class AuthController {
 	@PostMapping("/auth/login")
 	public AuthResponse login(@Valid @RequestBody LoginRequest request, HttpServletRequest servletRequest) {
 		return authService.login(request, requestId(servletRequest));
+	}
+
+	@PostMapping("/auth/refresh")
+	public AuthResponse refresh(@Valid @RequestBody RefreshTokenRequest request, HttpServletRequest servletRequest) {
+		return authService.refresh(request, requestId(servletRequest));
+	}
+
+	@PostMapping("/auth/logout")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	public void logout(@Valid @RequestBody RefreshTokenRequest request, HttpServletRequest servletRequest) {
+		authService.logout(request, requestId(servletRequest));
 	}
 
 	@GetMapping("/me")
