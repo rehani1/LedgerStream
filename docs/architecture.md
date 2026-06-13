@@ -36,6 +36,10 @@ CSV replay
 - Deterministic replay data for demos and tests.
 - Measured performance claims only after load tests are run.
 
+## Backend Foundation
+
+The backend starts as a Spring Boot 3 application with Web, Security, Validation, JPA, Flyway, Kafka, Actuator, Prometheus, PostgreSQL, and Testcontainers dependencies. The first exposed endpoints are `/api/ping` and `/actuator/health`; domain endpoints will be added behind authentication in later increments.
+
 ## TODO
 
 - Add service diagram.

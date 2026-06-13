@@ -1,0 +1,11 @@
+spring:
+  config:
+    activate:
+      on-profile: local
+  jpa:
+    show-sql: false
+
+management:
+  endpoint:
+    health:
+      show-details: when_authorized

@@ -8,6 +8,7 @@ The API surface below is the target contract. Endpoints will be marked as implem
 
 | Area | Method | Path | Auth | Notes |
 | --- | --- | --- | --- | --- |
+| Smoke | `GET` | `/api/ping` | Public | Implemented. Returns backend status and server timestamp. |
 | Auth | `POST` | `/api/auth/register` | Public | Create a user and portfolio. |
 | Auth | `POST` | `/api/auth/login` | Public | Return access and refresh tokens. |
 | Auth | `POST` | `/api/auth/refresh` | Public | Rotate refresh token and issue a new access token. |

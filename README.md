@@ -37,6 +37,21 @@ docker compose up --build
 
 This repository is currently in the initial scaffold stage. Service-specific setup commands will be added as the backend, worker, frontend, and local infrastructure are implemented.
 
+### Backend
+
+The backend is a Java 21 Spring Boot 3 service with a Maven wrapper.
+
+```bash
+cd backend
+./mvnw test
+./mvnw spring-boot:run -Dspring-boot.run.profiles=local
+```
+
+The initial public smoke endpoints are:
+
+- `GET /api/ping`
+- `GET /actuator/health`
+
 ### Local Service Ports
 
 | Service | Port | Notes |
