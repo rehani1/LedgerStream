@@ -66,10 +66,10 @@ A disabled-by-default market tick connectivity listener is available through `BA
 The Python worker is scaffolded under `workers/market-data` with a CLI entry point:
 
 ```bash
-python -m ledgerstream_market_data replay --file data/sample_ticks.csv
+PYTHONPATH=src python -m ledgerstream_market_data replay --file data/sample_ticks.csv
 ```
 
-The current skeleton validates replay configuration, logging, and input paths. CSV validation and Kafka `market.tick` publishing are added in subsequent worker increments. The Compose service is opt-in through the `worker` profile so local infrastructure can run without a missing fixture file stopping the stack.
+The worker validates replay configuration and deterministic CSV fixtures. `data/sample_ticks.csv` contains 25 ticks across `AAPL`, `MSFT`, `NVDA`, `TSLA`, and `SPY`, with bid, ask, last, volume, timestamp, and source fields. Kafka `market.tick` publishing is added in the next worker increment. The Compose service is opt-in through the `worker` profile until publishing is active.
 
 ## TODO
 

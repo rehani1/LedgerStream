@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 from typing import Iterable, Optional
 
+from ledgerstream_market_data.csv_ticks import CsvMarketDataError, read_market_ticks
 from ledgerstream_market_data.logging_config import configure_logging
 from ledgerstream_market_data.settings import MarketDataSettings
 
@@ -79,13 +80,19 @@ def run_replay(args: argparse.Namespace) -> int:
 	if not replay_file.is_file():
 		raise ReplayCommandError(f"replay path is not a file: {replay_file}")
 
+	try:
+		tick_count = sum(1 for _ in read_market_ticks(replay_file))
+	except CsvMarketDataError as ex:
+		raise ReplayCommandError(str(ex)) from ex
+
 	log.info(
-		"Market replay configuration validated",
+		"Market replay fixture validated",
 		extra={
 			"replay_file": str(replay_file),
 			"bootstrap_servers": args.bootstrap_servers,
 			"topic": args.topic,
 			"speed": args.speed,
+			"tick_count": tick_count,
 		},
 	)
 	return 0

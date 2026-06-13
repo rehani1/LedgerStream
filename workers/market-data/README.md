@@ -9,7 +9,7 @@ python3 -m venv .venv
 . .venv/bin/activate
 pip install -r requirements.txt
 pytest
-python -m ledgerstream_market_data replay --file data/sample_ticks.csv
+PYTHONPATH=src python -m ledgerstream_market_data replay --file data/sample_ticks.csv
 ```
 
-The replay command validates configuration and input paths in this skeleton. CSV parsing and Kafka publishing are implemented in the next worker increments.
+The included `data/sample_ticks.csv` fixture contains 25 deterministic ticks across `AAPL`, `MSFT`, `NVDA`, `TSLA`, and `SPY`. The replay command validates the CSV schema and row values. Kafka publishing is implemented in the next worker increment.
