@@ -61,6 +61,16 @@ Fills, cash updates, position changes, and ledger entries must be written inside
 
 `ledger_entries` is modeled as an immutable accounting journal. Normal application code must insert ledger entries but must not update or delete them. Later service and repository layers will enforce this by exposing write-only append operations and read-only query paths.
 
+## Persistence Mapping
+
+The backend maps schema rows to JPA entities under `com.ledgerstream.domain.model` and repositories under `com.ledgerstream.domain.repository`.
+
+- UUID primary keys are assigned by the application before insert.
+- Money, prices, quantities, exposure, and P&L use `BigDecimal`.
+- Role, order side, order type, order status, symbol asset type, and ledger entry type use Java enums stored as strings.
+- JSONB metadata columns are mapped through Hibernate JSON support.
+- Fast unit tests exclude database auto-configuration; repository integration tests will use the Testcontainers base in `PostgresRepositoryTestSupport` when Docker is available.
+
 ## ERD Placeholder
 
 ```mermaid
