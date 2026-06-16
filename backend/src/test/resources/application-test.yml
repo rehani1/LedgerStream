@@ -29,3 +29,4 @@ logging:
 ledgerstream:
   kafka:
     market-tick-consumer-enabled: false
+    order-created-consumer-enabled: false

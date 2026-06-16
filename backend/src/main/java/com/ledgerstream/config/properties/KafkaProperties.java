@@ -10,6 +10,7 @@ public record KafkaProperties(
 	@NotBlank String bootstrapServers,
 	@NotBlank String consumerGroupId,
 	boolean connectivityConsumerEnabled,
-	boolean marketTickConsumerEnabled
+	boolean marketTickConsumerEnabled,
+	boolean orderCreatedConsumerEnabled
 ) {
 }

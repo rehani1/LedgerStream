@@ -6,6 +6,7 @@ import java.util.Map;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ledgerstream.config.properties.KafkaProperties;
 import com.ledgerstream.events.MarketTickEvent;
+import com.ledgerstream.events.OrderCreatedEvent;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -75,6 +76,36 @@ public class EventStreamingConfiguration {
 		ConcurrentKafkaListenerContainerFactory<String, MarketTickEvent> factory =
 			new ConcurrentKafkaListenerContainerFactory<>();
 		factory.setConsumerFactory(marketTickConsumerFactory);
+		return factory;
+	}
+
+	@Bean
+	ConsumerFactory<String, OrderCreatedEvent> orderCreatedConsumerFactory(
+		KafkaProperties kafkaProperties,
+		ObjectMapper objectMapper
+	) {
+		Map<String, Object> config = new HashMap<>();
+		config.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaProperties.bootstrapServers());
+		config.put(ConsumerConfig.GROUP_ID_CONFIG, kafkaProperties.consumerGroupId());
+		config.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+		config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
+
+		JsonDeserializer<OrderCreatedEvent> valueDeserializer = new JsonDeserializer<>(
+			OrderCreatedEvent.class,
+			objectMapper,
+			false
+		);
+		valueDeserializer.addTrustedPackages("com.ledgerstream.events");
+		return new DefaultKafkaConsumerFactory<>(config, new StringDeserializer(), valueDeserializer);
+	}
+
+	@Bean
+	ConcurrentKafkaListenerContainerFactory<String, OrderCreatedEvent> orderCreatedKafkaListenerContainerFactory(
+		ConsumerFactory<String, OrderCreatedEvent> orderCreatedConsumerFactory
+	) {
+		ConcurrentKafkaListenerContainerFactory<String, OrderCreatedEvent> factory =
+			new ConcurrentKafkaListenerContainerFactory<>();
+		factory.setConsumerFactory(orderCreatedConsumerFactory);
 		return factory;
 	}
 }

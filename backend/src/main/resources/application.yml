@@ -72,6 +72,7 @@ ledgerstream:
     consumer-group-id: ${BACKEND_KAFKA_CONSUMER_GROUP:ledgerstream-backend}
     connectivity-consumer-enabled: ${BACKEND_KAFKA_CONNECTIVITY_CONSUMER_ENABLED:false}
     market-tick-consumer-enabled: ${BACKEND_MARKET_TICK_CONSUMER_ENABLED:true}
+    order-created-consumer-enabled: ${BACKEND_ORDER_CREATED_CONSUMER_ENABLED:true}
   market-replay:
     enabled: ${MARKET_DATA_REPLAY_ENABLED:false}
     tick-topic: ${MARKET_DATA_TICK_TOPIC:market.tick}

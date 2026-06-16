@@ -71,6 +71,12 @@ A disabled-by-default market tick connectivity listener is available through `BA
 
 The backend now consumes `market.tick` events through the `marketTickKafkaListenerContainerFactory`. Each accepted tick resolves its symbol, writes a historical `price_ticks` row unless the same `(symbol, timestamp, source)` already exists, and refreshes the Redis latest quote cache. Invalid payloads and unknown symbols are rejected and counted without retrying; unexpected infrastructure failures are allowed to propagate to Kafka retry/error handling. The consumer can be disabled with `BACKEND_MARKET_TICK_CONSUMER_ENABLED=false`.
 
+The backend also consumes `order.created` events through the `orderCreatedKafkaListenerContainerFactory`. The execution service reloads the stored order by ID and only evaluates orders that are still `PENDING` and have type `MARKET`; limit orders remain pending for a later matching flow. Market buys use the latest ask price with a last-price fallback, while market sells use the latest bid price with a last-price fallback. Orders are rejected when no quote is available, no positive executable price exists, the buyer has insufficient cash, or the seller has insufficient shares.
+
+When a market order is executable, the service creates a zero-fee fill, marks the order `FILLED`, and publishes `order.filled` in the same transactional service boundary. This phase does not yet update portfolio cash, position quantities, append-only ledger entries, portfolio summary events, or risk snapshots; those settlement responsibilities remain the next architecture layer before market execution is financially complete.
+
+The order execution consumer can be disabled with `BACKEND_ORDER_CREATED_CONSUMER_ENABLED=false`, which is useful for API-only tests and local debugging without automatic fills.
+
 ## Market Data Worker
 
 The Python worker is scaffolded under `workers/market-data` with a CLI entry point:

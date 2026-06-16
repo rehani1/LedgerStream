@@ -174,6 +174,20 @@ The order API creates user-scoped paper orders with a required `Idempotency-Key`
 
 New orders start as `PENDING` and publish an `order.created` event. Pending orders can transition to `CANCELLED`; non-pending cancellation attempts return a conflict error.
 
+Market order execution is asynchronous from the REST submission path. The backend consumes `order.created`, looks up the stored order, and executes only `MARKET` orders that are still `PENDING`. `LIMIT` orders intentionally remain pending until the limit-order matching flow is implemented.
+
+Current market execution assumptions:
+
+- BUY orders execute at the latest ask price, falling back to last price when ask is unavailable.
+- SELL orders execute at the latest bid price, falling back to last price when bid is unavailable.
+- Missing quotes or non-positive executable prices reject the order.
+- BUY orders require enough portfolio cash for notional value plus the current zero-fee model.
+- SELL orders require enough existing position quantity.
+- Filled market orders create a fill, mark the order `FILLED`, and publish `order.filled`.
+- Rejected market orders are marked `REJECTED` with a safe rejection reason and do not create fills.
+
+Current limitation: fills do not yet settle cash, positions, ledger entries, portfolio updates, or risk snapshots. Those transactional accounting updates are the next domain layer and are required before the platform should represent executed orders as settled portfolio state.
+
 `POST /api/orders`
 
 ```http

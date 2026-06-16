@@ -23,6 +23,7 @@ class EventStreamingConfigurationTest {
 		"localhost:19092",
 		"ledgerstream-test",
 		false,
+		false,
 		false
 	);
 
