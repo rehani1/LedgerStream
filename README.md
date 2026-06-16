@@ -76,6 +76,13 @@ Implemented symbol and quote endpoints:
 - `GET /api/symbols/{ticker}/history?range=1d&limit=500`
 - `GET /api/stream/quotes?symbols=AAPL,MSFT`
 
+Implemented order endpoints:
+
+- `POST /api/orders`
+- `GET /api/orders`
+- `GET /api/orders/{id}`
+- `POST /api/orders/{id}/cancel`
+
 ### Market Data Worker
 
 The market-data worker validates deterministic CSV replay fixtures and can publish normalized `market.tick` events to Redpanda.

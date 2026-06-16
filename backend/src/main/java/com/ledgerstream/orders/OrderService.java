@@ -3,6 +3,7 @@ package com.ledgerstream.orders;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -52,14 +53,14 @@ public class OrderService {
 	}
 
 	@Transactional
-	public OrderResponse createOrder(
+	public CreateOrderResult createOrder(
 		AuthenticatedUser authenticatedUser,
 		String idempotencyKey,
 		CreateOrderRequest request
 	) {
 		String normalizedIdempotencyKey = normalizeIdempotencyKey(idempotencyKey);
 		return orderRepository.findByUserIdAndIdempotencyKey(authenticatedUser.id(), normalizedIdempotencyKey)
-			.map(OrderResponse::from)
+			.map(order -> new CreateOrderResult(OrderResponse.from(order), false))
 			.orElseGet(() -> createNewOrder(authenticatedUser, normalizedIdempotencyKey, request));
 	}
 
@@ -74,7 +75,21 @@ public class OrderService {
 		return OrderResponse.from(orderRepository.save(order));
 	}
 
-	private OrderResponse createNewOrder(
+	@Transactional(readOnly = true)
+	public List<OrderResponse> listOrders(AuthenticatedUser authenticatedUser) {
+		return orderRepository.findByUserIdOrderByCreatedAtDesc(authenticatedUser.id()).stream()
+			.map(OrderResponse::from)
+			.toList();
+	}
+
+	@Transactional(readOnly = true)
+	public OrderResponse getOrder(AuthenticatedUser authenticatedUser, UUID orderId) {
+		return orderRepository.findByIdAndUserId(orderId, authenticatedUser.id())
+			.map(OrderResponse::from)
+			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
+	}
+
+	private CreateOrderResult createNewOrder(
 		AuthenticatedUser authenticatedUser,
 		String idempotencyKey,
 		CreateOrderRequest request
@@ -98,7 +113,7 @@ public class OrderService {
 
 		TradeOrder savedOrder = orderRepository.save(order);
 		eventPublisher.publishOrderCreated(toOrderCreatedEvent(savedOrder));
-		return OrderResponse.from(savedOrder);
+		return new CreateOrderResult(OrderResponse.from(savedOrder), true);
 	}
 
 	private void validateRequest(CreateOrderRequest request) {

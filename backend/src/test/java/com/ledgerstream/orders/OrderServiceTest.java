@@ -11,6 +11,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -84,11 +85,12 @@ class OrderServiceTest {
 		when(symbolRepository.findByTicker("AAPL")).thenReturn(Optional.of(symbol));
 		when(orderRepository.save(any(TradeOrder.class))).thenAnswer(invocation -> persist(invocation.getArgument(0)));
 
-		OrderResponse response = orderService.createOrder(
+		CreateOrderResult result = orderService.createOrder(
 			authenticatedUser,
 			" order-key-1 ",
 			new CreateOrderRequest("aapl", OrderSide.BUY, OrderType.MARKET, new BigDecimal("10.000000"), null)
 		);
+		OrderResponse response = result.order();
 
 		ArgumentCaptor<TradeOrder> orderCaptor = ArgumentCaptor.forClass(TradeOrder.class);
 		verify(orderRepository).save(orderCaptor.capture());
@@ -117,6 +119,7 @@ class OrderServiceTest {
 		assertThat(response.symbol()).isEqualTo("AAPL");
 		assertThat(response.status()).isEqualTo(OrderStatus.PENDING);
 		assertThat(response.createdAt()).isEqualTo(NOW);
+		assertThat(result.created()).isTrue();
 	}
 
 	@Test
@@ -124,13 +127,14 @@ class OrderServiceTest {
 		TradeOrder existingOrder = order(OrderStatus.PENDING);
 		when(orderRepository.findByUserIdAndIdempotencyKey(USER_ID, "order-key-2")).thenReturn(Optional.of(existingOrder));
 
-		OrderResponse response = orderService.createOrder(
+		CreateOrderResult result = orderService.createOrder(
 			authenticatedUser,
 			"order-key-2",
 			new CreateOrderRequest("AAPL", OrderSide.BUY, OrderType.MARKET, new BigDecimal("10.000000"), null)
 		);
 
-		assertThat(response.id()).isEqualTo(existingOrder.getId());
+		assertThat(result.order().id()).isEqualTo(existingOrder.getId());
+		assertThat(result.created()).isFalse();
 		verify(orderRepository, never()).save(any(TradeOrder.class));
 		verify(userRepository, never()).findById(any(UUID.class));
 		verify(eventPublisher, never()).publishOrderCreated(any(OrderCreatedEvent.class));
@@ -212,6 +216,42 @@ class OrderServiceTest {
 			});
 
 		verify(orderRepository, never()).save(any(TradeOrder.class));
+	}
+
+	@Test
+	void listOrdersReturnsUserScopedHistory() {
+		TradeOrder newest = order(OrderStatus.PENDING);
+		TradeOrder older = order(OrderStatus.CANCELLED);
+		when(orderRepository.findByUserIdOrderByCreatedAtDesc(USER_ID)).thenReturn(List.of(newest, older));
+
+		List<OrderResponse> orders = orderService.listOrders(authenticatedUser);
+
+		assertThat(orders).extracting(OrderResponse::id).containsExactly(newest.getId(), older.getId());
+	}
+
+	@Test
+	void getOrderReturnsUserScopedOrder() {
+		UUID orderId = UUID.randomUUID();
+		TradeOrder order = order(OrderStatus.PENDING);
+		order.setId(orderId);
+		when(orderRepository.findByIdAndUserId(orderId, USER_ID)).thenReturn(Optional.of(order));
+
+		OrderResponse response = orderService.getOrder(authenticatedUser, orderId);
+
+		assertThat(response.id()).isEqualTo(orderId);
+		assertThat(response.status()).isEqualTo(OrderStatus.PENDING);
+	}
+
+	@Test
+	void getOrderReturnsNotFoundForMissingOrCrossUserOrder() {
+		UUID orderId = UUID.randomUUID();
+		when(orderRepository.findByIdAndUserId(orderId, USER_ID)).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> orderService.getOrder(authenticatedUser, orderId))
+			.isInstanceOfSatisfying(ResponseStatusException.class, ex -> {
+				assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+				assertThat(ex.getReason()).isEqualTo("Order not found");
+			});
 	}
 
 	private void assertBadRequest(Runnable action, String reason) {

@@ -19,10 +19,10 @@ The API surface below is the target contract. Endpoints will be marked as implem
 | Quotes | `GET` | `/api/symbols/{ticker}/quote` | User | Implemented. Return latest quote from Redis with database fallback. |
 | Quotes | `GET` | `/api/symbols/{ticker}/history?range=1d&limit=500` | User | Implemented. Return historical ticks with bounded result size. |
 | Streaming | `GET` | `/api/stream/quotes?symbols=AAPL,MSFT` | User | Implemented. SSE quote stream. |
-| Orders | `POST` | `/api/orders` | User | Requires `Idempotency-Key`. |
-| Orders | `GET` | `/api/orders` | User | User-scoped order history. |
-| Orders | `GET` | `/api/orders/{id}` | User | User-scoped order detail. |
-| Orders | `POST` | `/api/orders/{id}/cancel` | User | Cancel pending orders. |
+| Orders | `POST` | `/api/orders` | User | Implemented. Requires `Idempotency-Key`. |
+| Orders | `GET` | `/api/orders` | User | Implemented. User-scoped order history. |
+| Orders | `GET` | `/api/orders/{id}` | User | Implemented. User-scoped order detail. |
+| Orders | `POST` | `/api/orders/{id}/cancel` | User | Implemented. Cancel pending orders. |
 | Portfolio | `GET` | `/api/portfolio` | User | Summary with cash, equity, and P&L. |
 | Portfolio | `GET` | `/api/portfolio/positions` | User | Position list. |
 | Portfolio | `GET` | `/api/portfolio/ledger` | User | Paginated ledger entries. |
@@ -168,11 +168,46 @@ data: {"symbol":"AAPL","timestamp":"2026-01-02T14:34:00Z","bid":187.360000,"ask"
 
 The backend sends available latest quotes immediately after subscription and broadcasts new `market.tick` updates after they are accepted by the ingestion path.
 
-## Order Service Behavior
+## Orders
 
-The backend order domain service is implemented ahead of the REST controller. It creates user-scoped paper orders with a required idempotency key, normalizes ticker input, validates positive quantities, requires positive limit prices for limit orders, stores market orders with `limitPrice: null`, and returns the existing order for duplicate `(user, idempotencyKey)` submissions without publishing a second event.
+The order API creates user-scoped paper orders with a required `Idempotency-Key` header, normalizes ticker input, validates positive quantities, requires positive limit prices for limit orders, stores market orders with `limitPrice: null`, and returns the existing order for duplicate `(user, idempotencyKey)` submissions without publishing a second event.
 
-New orders start as `PENDING` and publish an `order.created` event. Pending orders can transition to `CANCELLED`; non-pending cancellation attempts return a conflict error. REST endpoints remain listed as planned until the controller layer is added.
+New orders start as `PENDING` and publish an `order.created` event. Pending orders can transition to `CANCELLED`; non-pending cancellation attempts return a conflict error.
+
+`POST /api/orders`
+
+```http
+Idempotency-Key: order-2026-01-02-0001
+Content-Type: application/json
+```
+
+```json
+{
+  "symbol": "AAPL",
+  "side": "BUY",
+  "orderType": "MARKET",
+  "quantity": 10.000000
+}
+```
+
+First submissions return `201 Created`; duplicate idempotency submissions return `200 OK` with the original order:
+
+```json
+{
+  "id": "00000000-0000-0000-0000-000000000010",
+  "symbol": "AAPL",
+  "side": "BUY",
+  "orderType": "MARKET",
+  "quantity": 10.000000,
+  "limitPrice": null,
+  "status": "PENDING",
+  "rejectionReason": null,
+  "createdAt": "2026-01-02T14:35:00Z",
+  "updatedAt": "2026-01-02T14:35:00Z"
+}
+```
+
+`GET /api/orders` returns only the authenticated user's order history. `GET /api/orders/{id}` returns `404` for missing or cross-user orders. `POST /api/orders/{id}/cancel` returns the updated order when cancellation succeeds and `409` when the order is no longer pending.
 
 `GET /api/admin/queue-health` currently returns the configured event-topic contract. It does not claim live broker connectivity yet:
 
