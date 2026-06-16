@@ -23,9 +23,9 @@ The API surface below is the target contract. Endpoints will be marked as implem
 | Orders | `GET` | `/api/orders` | User | Implemented. User-scoped order history. |
 | Orders | `GET` | `/api/orders/{id}` | User | Implemented. User-scoped order detail. |
 | Orders | `POST` | `/api/orders/{id}/cancel` | User | Implemented. Cancel pending orders. |
-| Portfolio | `GET` | `/api/portfolio` | User | Summary with cash, equity, and P&L. |
-| Portfolio | `GET` | `/api/portfolio/positions` | User | Position list. |
-| Portfolio | `GET` | `/api/portfolio/ledger` | User | Paginated ledger entries. |
+| Portfolio | `GET` | `/api/portfolio` | User | Implemented. Summary with cash, equity, and P&L. |
+| Portfolio | `GET` | `/api/portfolio/positions` | User | Implemented. Position list with quote-derived valuations. |
+| Portfolio | `GET` | `/api/portfolio/ledger?page=0&size=50` | User | Implemented. Paginated append-only ledger entries. |
 | Risk | `GET` | `/api/portfolio/risk` | User | Latest risk snapshot. |
 | Risk | `GET` | `/api/portfolio/risk/history` | User | Historical risk snapshots. |
 | Admin | `POST` | `/api/admin/market/replay/start` | Admin | Start deterministic replay control. |
@@ -226,6 +226,81 @@ First submissions return `201 Created`; duplicate idempotency submissions return
 ```
 
 `GET /api/orders` returns only the authenticated user's order history. `GET /api/orders/{id}` returns `404` for missing or cross-user orders. `POST /api/orders/{id}/cancel` returns the updated order when cancellation succeeds and `409` when the order is no longer pending.
+
+## Portfolio
+
+Portfolio endpoints are authenticated and user-scoped. Missing portfolios return `404`; one user cannot request another user's positions or ledger because all reads are filtered by the authenticated user ID.
+
+Position valuation uses the latest quote `last` price when available. If no latest quote exists, the API falls back to average cost for valuation, sets `lastPrice` to `null`, uses `valuationSource: "COST_BASIS_FALLBACK"`, and reports `unrealizedPnl: 0.00` for that position.
+
+`GET /api/portfolio`
+
+```json
+{
+  "portfolioId": "00000000-0000-0000-0000-000000000100",
+  "baseCurrency": "USD",
+  "cash": 98125.20,
+  "marketValue": 1874.80,
+  "totalEquity": 100000.00,
+  "realizedPnl": 0.00,
+  "unrealizedPnl": 0.00,
+  "positionsCount": 1,
+  "pricedPositionsCount": 1,
+  "updatedAt": "2026-01-02T14:35:00Z"
+}
+```
+
+`GET /api/portfolio/positions`
+
+```json
+[
+  {
+    "id": "00000000-0000-0000-0000-000000000101",
+    "symbol": "AAPL",
+    "quantity": 10.000000,
+    "avgCost": 187.480000,
+    "lastPrice": 187.480000,
+    "valuationPrice": 187.480000,
+    "valuationSource": "LATEST_QUOTE",
+    "marketValue": 1874.80,
+    "costBasis": 1874.80,
+    "unrealizedPnl": 0.00,
+    "realizedPnl": 0.00,
+    "updatedAt": "2026-01-02T14:35:00Z"
+  }
+]
+```
+
+`GET /api/portfolio/ledger?page=0&size=50`
+
+`page` is zero-based. `size` must be between `1` and `100`.
+
+```json
+{
+  "entries": [
+    {
+      "id": "00000000-0000-0000-0000-000000000102",
+      "entryType": "BUY_FILL",
+      "cashDelta": -1874.80,
+      "symbol": "AAPL",
+      "quantityDelta": 10.000000,
+      "price": 187.480000,
+      "orderId": "00000000-0000-0000-0000-000000000103",
+      "fillId": "00000000-0000-0000-0000-000000000104",
+      "createdAt": "2026-01-02T14:35:00Z",
+      "metadata": {
+        "orderSide": "BUY",
+        "orderType": "MARKET",
+        "fee": 0.00
+      }
+    }
+  ],
+  "page": 0,
+  "size": 50,
+  "totalElements": 1,
+  "totalPages": 1
+}
+```
 
 `GET /api/admin/queue-health` currently returns the configured event-topic contract. It does not claim live broker connectivity yet:
 

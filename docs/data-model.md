@@ -79,6 +79,19 @@ The implemented order service supports `PENDING` creation and `PENDING -> CANCEL
 - Full sells keep the position row with `quantity = 0.000000` and `avg_cost = 0.000000`; a future cleanup or archival policy can hide closed positions from portfolio views.
 - The current fee model is zero-fee, but the settlement formulas include the fill fee field so a later fee model can be introduced without changing the accounting shape.
 
+## Portfolio Read Model
+
+Portfolio API reads are user-scoped through the authenticated user ID:
+
+- `portfolios` provides cash, base currency, and the portfolio timestamp.
+- `positions` provides quantity, average cost, and realized P&L.
+- latest quotes provide valuation price, market value, total equity, and unrealized P&L when available.
+- `ledger_entries` provides paginated append-only cash and quantity deltas.
+
+When a latest quote is unavailable for a position, the read model uses average cost as a valuation fallback. The position response marks this with `valuationSource = COST_BASIS_FALLBACK`, leaves `lastPrice` null, and reports zero unrealized P&L for that position. Latest-quote valuations use `valuationSource = LATEST_QUOTE`.
+
+Ledger pages are zero-based and bounded to a maximum size of 100 entries to keep user-facing reads predictable.
+
 ## Append-Only Ledger
 
 `ledger_entries` is modeled as an immutable accounting journal. Normal application code inserts ledger rows through `PortfolioLedgerService`, which exposes append behavior only and is called from the fill settlement transaction. Normal portfolio flows must not update or delete ledger rows.
