@@ -63,7 +63,7 @@ Fills, cash updates, position changes, and ledger entries must be written inside
 
 Order creation writes a `PENDING` `orders` row and publishes `order.created`. The service treats `(user_id, idempotency_key)` as the idempotency boundary: duplicate submissions return the existing order and do not write or publish again.
 
-Market execution consumes `order.created` and handles fill creation, order status, cash settlement, and position settlement in one Spring transaction. Append-only ledger rows are still the next layer and must be inserted in that same transaction when implemented.
+Market execution consumes `order.created` and handles fill creation, order status, cash settlement, position settlement, and ledger append in one Spring transaction.
 
 ## Order Lifecycle
 
@@ -81,7 +81,14 @@ The implemented order service supports `PENDING` creation and `PENDING -> CANCEL
 
 ## Append-Only Ledger
 
-`ledger_entries` is modeled as an immutable accounting journal. Normal application code must insert ledger entries but must not update or delete them. The next service layer will enforce this by exposing write-only append operations and read-only query paths.
+`ledger_entries` is modeled as an immutable accounting journal. Normal application code inserts ledger rows through `PortfolioLedgerService`, which exposes append behavior only and is called from the fill settlement transaction. Normal portfolio flows must not update or delete ledger rows.
+
+Each filled market order currently creates one ledger entry:
+
+- `BUY_FILL`: negative `cash_delta`, positive `quantity_delta`, execution price, and references to the user, portfolio, order, fill, and symbol.
+- `SELL_FILL`: positive `cash_delta`, negative `quantity_delta`, execution price, and references to the user, portfolio, order, fill, and symbol.
+
+The current zero-fee model stores fee metadata on the fill ledger row. If a nonzero fee model is added later, the platform can either keep net cash deltas on fill rows or add explicit `FEE` rows while preserving append-only history.
 
 ## Persistence Mapping
 

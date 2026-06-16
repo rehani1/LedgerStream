@@ -188,7 +188,9 @@ Current market execution assumptions:
 
 Portfolio settlement uses these rounding assumptions: cash, fees, and realized P&L are rounded to 2 decimal places with `HALF_UP`; prices, quantities, and average cost are rounded to 6 decimal places with `HALF_UP`. BUY fills decrease cash by `price * quantity + fee`, increase quantity, and recalculate weighted average cost. SELL fills increase cash by `price * quantity - fee`, decrease quantity, and add realized P&L as `(execution price - average cost) * quantity - fee`. A full sell leaves a zero-quantity position row with average cost reset to zero.
 
-Current limitation: fills do not yet create append-only ledger entries, publish `portfolio.updated`, or create risk snapshots. Those accounting journal and analytics updates are the next domain layers.
+Each filled market order also appends one ledger entry in the same transaction as the fill, cash update, and position update. BUY fill ledger rows record a negative cash delta and positive quantity delta. SELL fill ledger rows record a positive cash delta and negative quantity delta. The ledger row links the user, portfolio, order, fill, symbol, execution price, and metadata including side, order type, and fee.
+
+Current limitation: fills do not yet publish `portfolio.updated` or create risk snapshots. Those portfolio summary and analytics updates are the next domain layers.
 
 `POST /api/orders`
 

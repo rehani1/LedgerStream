@@ -20,6 +20,7 @@ import com.ledgerstream.domain.repository.PositionRepository;
 import com.ledgerstream.events.EventPublisher;
 import com.ledgerstream.events.OrderCreatedEvent;
 import com.ledgerstream.events.OrderFilledEvent;
+import com.ledgerstream.portfolio.PortfolioLedgerService;
 import com.ledgerstream.quotes.QuoteQueryService;
 import com.ledgerstream.quotes.dto.QuoteResponse;
 import org.springframework.http.HttpStatus;
@@ -44,6 +45,7 @@ public class OrderExecutionService {
 	private final PortfolioRepository portfolioRepository;
 	private final PositionRepository positionRepository;
 	private final QuoteQueryService quoteQueryService;
+	private final PortfolioLedgerService portfolioLedgerService;
 	private final EventPublisher eventPublisher;
 	private final Clock clock;
 
@@ -53,6 +55,7 @@ public class OrderExecutionService {
 		PortfolioRepository portfolioRepository,
 		PositionRepository positionRepository,
 		QuoteQueryService quoteQueryService,
+		PortfolioLedgerService portfolioLedgerService,
 		EventPublisher eventPublisher,
 		Clock clock
 	) {
@@ -61,6 +64,7 @@ public class OrderExecutionService {
 		this.portfolioRepository = portfolioRepository;
 		this.positionRepository = positionRepository;
 		this.quoteQueryService = quoteQueryService;
+		this.portfolioLedgerService = portfolioLedgerService;
 		this.eventPublisher = eventPublisher;
 		this.clock = clock;
 	}
@@ -192,6 +196,7 @@ public class OrderExecutionService {
 		position.setQuantity(updatedQuantity);
 		position.setAvgCost(updatedAvgCost);
 		positionRepository.save(position);
+		portfolioLedgerService.appendFill(portfolio, fill, totalCost.negate(), fillQuantity);
 	}
 
 	private void applySell(Portfolio portfolio, Fill fill, Position position) {
@@ -211,6 +216,7 @@ public class OrderExecutionService {
 			position.setAvgCost(ZERO_PRICE);
 		}
 		positionRepository.save(position);
+		portfolioLedgerService.appendFill(portfolio, fill, proceeds, fillQuantity.negate());
 	}
 
 	private Position newPosition(Fill fill) {
