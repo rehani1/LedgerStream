@@ -168,6 +168,12 @@ data: {"symbol":"AAPL","timestamp":"2026-01-02T14:34:00Z","bid":187.360000,"ask"
 
 The backend sends available latest quotes immediately after subscription and broadcasts new `market.tick` updates after they are accepted by the ingestion path.
 
+## Order Service Behavior
+
+The backend order domain service is implemented ahead of the REST controller. It creates user-scoped paper orders with a required idempotency key, normalizes ticker input, validates positive quantities, requires positive limit prices for limit orders, stores market orders with `limitPrice: null`, and returns the existing order for duplicate `(user, idempotencyKey)` submissions without publishing a second event.
+
+New orders start as `PENDING` and publish an `order.created` event. Pending orders can transition to `CANCELLED`; non-pending cancellation attempts return a conflict error. REST endpoints remain listed as planned until the controller layer is added.
+
 `GET /api/admin/queue-health` currently returns the configured event-topic contract. It does not claim live broker connectivity yet:
 
 ```json

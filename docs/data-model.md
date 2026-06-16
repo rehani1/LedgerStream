@@ -61,6 +61,12 @@ Flyway seeds deterministic symbol rows for `AAPL`, `MSFT`, `NVDA`, `TSLA`, and `
 
 Fills, cash updates, position changes, and ledger entries must be written inside one database transaction. Duplicate order submissions with the same user-scoped idempotency key must not create duplicate orders or duplicate fills.
 
+Order creation currently writes a `PENDING` `orders` row and publishes `order.created`. The service treats `(user_id, idempotency_key)` as the idempotency boundary: duplicate submissions return the existing order and do not write or publish again. Market execution, fills, and portfolio ledger updates are added in later service layers.
+
+## Order Lifecycle
+
+The implemented order service supports `PENDING` creation and `PENDING -> CANCELLED` transitions. Attempts to cancel `FILLED`, `CANCELLED`, or `REJECTED` orders are rejected with a conflict response. Execution services will own `PENDING -> FILLED` and `PENDING -> REJECTED` transitions.
+
 ## Append-Only Ledger
 
 `ledger_entries` is modeled as an immutable accounting journal. Normal application code must insert ledger entries but must not update or delete them. Later service and repository layers will enforce this by exposing write-only append operations and read-only query paths.
