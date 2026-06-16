@@ -183,10 +183,12 @@ Current market execution assumptions:
 - Missing quotes or non-positive executable prices reject the order.
 - BUY orders require enough portfolio cash for notional value plus the current zero-fee model.
 - SELL orders require enough existing position quantity.
-- Filled market orders create a fill, mark the order `FILLED`, and publish `order.filled`.
+- Filled market orders create a fill, settle portfolio cash and position state in the same transaction, mark the order `FILLED`, and publish `order.filled`.
 - Rejected market orders are marked `REJECTED` with a safe rejection reason and do not create fills.
 
-Current limitation: fills do not yet settle cash, positions, ledger entries, portfolio updates, or risk snapshots. Those transactional accounting updates are the next domain layer and are required before the platform should represent executed orders as settled portfolio state.
+Portfolio settlement uses these rounding assumptions: cash, fees, and realized P&L are rounded to 2 decimal places with `HALF_UP`; prices, quantities, and average cost are rounded to 6 decimal places with `HALF_UP`. BUY fills decrease cash by `price * quantity + fee`, increase quantity, and recalculate weighted average cost. SELL fills increase cash by `price * quantity - fee`, decrease quantity, and add realized P&L as `(execution price - average cost) * quantity - fee`. A full sell leaves a zero-quantity position row with average cost reset to zero.
+
+Current limitation: fills do not yet create append-only ledger entries, publish `portfolio.updated`, or create risk snapshots. Those accounting journal and analytics updates are the next domain layers.
 
 `POST /api/orders`
 

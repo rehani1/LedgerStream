@@ -1,6 +1,7 @@
 package com.ledgerstream.orders;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
@@ -29,7 +30,14 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class OrderExecutionService {
 
+	static final int MONEY_SCALE = 2;
+	static final int PRICE_SCALE = 6;
+	static final int QUANTITY_SCALE = 6;
 	static final BigDecimal ZERO_FEE = new BigDecimal("0.00");
+	static final BigDecimal ZERO_PRICE = new BigDecimal("0.000000");
+	static final BigDecimal ZERO_QUANTITY = new BigDecimal("0.000000");
+
+	private static final RoundingMode ACCOUNTING_ROUNDING = RoundingMode.HALF_UP;
 
 	private final OrderRepository orderRepository;
 	private final FillRepository fillRepository;
@@ -80,20 +88,38 @@ public class OrderExecutionService {
 			return;
 		}
 
-		if (order.getSide() == OrderSide.BUY && !hasSufficientCash(order, executionPrice)) {
-			reject(order, "Insufficient cash");
-			return;
-		}
-
-		if (order.getSide() == OrderSide.SELL && !hasSufficientShares(order)) {
-			reject(order, "Insufficient shares");
-			return;
+		Portfolio portfolio;
+		Position sellPosition = null;
+		if (order.getSide() == OrderSide.BUY) {
+			portfolio = portfolioRepository.findByUserId(order.getUser().getId()).orElse(null);
+			if (portfolio == null) {
+				reject(order, "Portfolio not found");
+				return;
+			}
+			if (!hasSufficientCash(portfolio, order, executionPrice)) {
+				reject(order, "Insufficient cash");
+				return;
+			}
+		} else {
+			sellPosition = positionRepository
+				.findByUserIdAndSymbolTicker(order.getUser().getId(), order.getSymbol().getTicker())
+				.orElse(null);
+			if (!hasSufficientShares(sellPosition, order)) {
+				reject(order, "Insufficient shares");
+				return;
+			}
+			portfolio = portfolioRepository.findByUserId(order.getUser().getId()).orElse(null);
+			if (portfolio == null) {
+				reject(order, "Portfolio not found");
+				return;
+			}
 		}
 
 		Fill fill = createFill(order, executionPrice);
 		order.setStatus(OrderStatus.FILLED);
 		orderRepository.save(order);
 		Fill savedFill = fillRepository.save(fill);
+		applyPortfolioUpdate(portfolio, savedFill, sellPosition);
 		eventPublisher.publishOrderFilled(toOrderFilledEvent(savedFill));
 	}
 
@@ -115,19 +141,12 @@ public class OrderExecutionService {
 		return quote.bid() == null ? quote.last() : quote.bid();
 	}
 
-	private boolean hasSufficientCash(TradeOrder order, BigDecimal executionPrice) {
-		Portfolio portfolio = portfolioRepository.findByUserId(order.getUser().getId()).orElse(null);
-		if (portfolio == null) {
-			return false;
-		}
-		BigDecimal notional = executionPrice.multiply(order.getQuantity()).add(ZERO_FEE);
-		return portfolio.getCashBalance().compareTo(notional) >= 0;
+	private boolean hasSufficientCash(Portfolio portfolio, TradeOrder order, BigDecimal executionPrice) {
+		BigDecimal totalCost = money(executionPrice.multiply(order.getQuantity()).add(ZERO_FEE));
+		return portfolio.getCashBalance().compareTo(totalCost) >= 0;
 	}
 
-	private boolean hasSufficientShares(TradeOrder order) {
-		Position position = positionRepository
-			.findByUserIdAndSymbolTicker(order.getUser().getId(), order.getSymbol().getTicker())
-			.orElse(null);
+	private boolean hasSufficientShares(Position position, TradeOrder order) {
 		return position != null && position.getQuantity().compareTo(order.getQuantity()) >= 0;
 	}
 
@@ -140,6 +159,85 @@ public class OrderExecutionService {
 		fill.setFee(ZERO_FEE);
 		fill.setFilledAt(Instant.now(clock));
 		return fill;
+	}
+
+	private void applyPortfolioUpdate(Portfolio portfolio, Fill fill, Position sellPosition) {
+		if (fill.getOrder().getSide() == OrderSide.BUY) {
+			applyBuy(portfolio, fill);
+		} else {
+			applySell(portfolio, fill, sellPosition);
+		}
+		portfolioRepository.save(portfolio);
+	}
+
+	private void applyBuy(Portfolio portfolio, Fill fill) {
+		BigDecimal totalCost = money(notional(fill).add(fill.getFee()));
+		portfolio.setCashBalance(money(portfolio.getCashBalance().subtract(totalCost)));
+
+		Position position = positionRepository
+			.findByUserIdAndSymbolTicker(fill.getOrder().getUser().getId(), fill.getSymbol().getTicker())
+			.orElseGet(() -> newPosition(fill));
+
+		BigDecimal existingQuantity = quantity(position.getQuantity());
+		BigDecimal fillQuantity = quantity(fill.getQuantity());
+		BigDecimal updatedQuantity = quantity(existingQuantity.add(fillQuantity));
+		BigDecimal existingCostBasis = position.getAvgCost().multiply(existingQuantity);
+		BigDecimal fillCostBasis = fill.getPrice().multiply(fillQuantity);
+		BigDecimal updatedAvgCost = price(existingCostBasis.add(fillCostBasis).divide(
+			updatedQuantity,
+			PRICE_SCALE,
+			ACCOUNTING_ROUNDING
+		));
+
+		position.setQuantity(updatedQuantity);
+		position.setAvgCost(updatedAvgCost);
+		positionRepository.save(position);
+	}
+
+	private void applySell(Portfolio portfolio, Fill fill, Position position) {
+		BigDecimal proceeds = money(notional(fill).subtract(fill.getFee()));
+		portfolio.setCashBalance(money(portfolio.getCashBalance().add(proceeds)));
+
+		BigDecimal fillQuantity = quantity(fill.getQuantity());
+		BigDecimal updatedQuantity = quantity(position.getQuantity().subtract(fillQuantity));
+		BigDecimal realizedPnl = money(fill.getPrice()
+			.subtract(position.getAvgCost())
+			.multiply(fillQuantity)
+			.subtract(fill.getFee()));
+
+		position.setQuantity(updatedQuantity);
+		position.setRealizedPnl(money(position.getRealizedPnl().add(realizedPnl)));
+		if (updatedQuantity.compareTo(BigDecimal.ZERO) == 0) {
+			position.setAvgCost(ZERO_PRICE);
+		}
+		positionRepository.save(position);
+	}
+
+	private Position newPosition(Fill fill) {
+		Position position = new Position();
+		position.setUser(fill.getOrder().getUser());
+		position.setSymbol(fill.getSymbol());
+		position.setQuantity(ZERO_QUANTITY);
+		position.setAvgCost(ZERO_PRICE);
+		position.setRealizedPnl(ZERO_FEE);
+		position.setUpdatedAt(Instant.now(clock));
+		return position;
+	}
+
+	private BigDecimal notional(Fill fill) {
+		return fill.getPrice().multiply(fill.getQuantity());
+	}
+
+	private BigDecimal money(BigDecimal value) {
+		return value.setScale(MONEY_SCALE, ACCOUNTING_ROUNDING);
+	}
+
+	private BigDecimal price(BigDecimal value) {
+		return value.setScale(PRICE_SCALE, ACCOUNTING_ROUNDING);
+	}
+
+	private BigDecimal quantity(BigDecimal value) {
+		return value.setScale(QUANTITY_SCALE, ACCOUNTING_ROUNDING);
 	}
 
 	private void reject(TradeOrder order, String reason) {

@@ -61,15 +61,27 @@ Flyway seeds deterministic symbol rows for `AAPL`, `MSFT`, `NVDA`, `TSLA`, and `
 
 Fills, cash updates, position changes, and ledger entries must be written inside one database transaction. Duplicate order submissions with the same user-scoped idempotency key must not create duplicate orders or duplicate fills.
 
-Order creation currently writes a `PENDING` `orders` row and publishes `order.created`. The service treats `(user_id, idempotency_key)` as the idempotency boundary: duplicate submissions return the existing order and do not write or publish again. Market execution, fills, and portfolio ledger updates are added in later service layers.
+Order creation writes a `PENDING` `orders` row and publishes `order.created`. The service treats `(user_id, idempotency_key)` as the idempotency boundary: duplicate submissions return the existing order and do not write or publish again.
+
+Market execution consumes `order.created` and handles fill creation, order status, cash settlement, and position settlement in one Spring transaction. Append-only ledger rows are still the next layer and must be inserted in that same transaction when implemented.
 
 ## Order Lifecycle
 
-The implemented order service supports `PENDING` creation and `PENDING -> CANCELLED` transitions. Attempts to cancel `FILLED`, `CANCELLED`, or `REJECTED` orders are rejected with a conflict response. Execution services will own `PENDING -> FILLED` and `PENDING -> REJECTED` transitions.
+The implemented order service supports `PENDING` creation and `PENDING -> CANCELLED` transitions. Attempts to cancel `FILLED`, `CANCELLED`, or `REJECTED` orders are rejected with a conflict response. Market execution owns `PENDING -> FILLED` and `PENDING -> REJECTED` transitions for market orders.
+
+## Accounting Rules
+
+- Cash balances, fees, cash deltas, and realized P&L use 2 decimal places with `HALF_UP` rounding.
+- Prices, quantities, and average cost use 6 decimal places with `HALF_UP` rounding.
+- BUY fills decrease cash by `price * quantity + fee`, increase position quantity, and recalculate weighted average cost from existing cost basis plus fill cost.
+- SELL fills increase cash by `price * quantity - fee`, decrease position quantity, and add realized P&L as `(execution price - average cost) * quantity - fee`.
+- Partial sells keep the existing average cost.
+- Full sells keep the position row with `quantity = 0.000000` and `avg_cost = 0.000000`; a future cleanup or archival policy can hide closed positions from portfolio views.
+- The current fee model is zero-fee, but the settlement formulas include the fill fee field so a later fee model can be introduced without changing the accounting shape.
 
 ## Append-Only Ledger
 
-`ledger_entries` is modeled as an immutable accounting journal. Normal application code must insert ledger entries but must not update or delete them. Later service and repository layers will enforce this by exposing write-only append operations and read-only query paths.
+`ledger_entries` is modeled as an immutable accounting journal. Normal application code must insert ledger entries but must not update or delete them. The next service layer will enforce this by exposing write-only append operations and read-only query paths.
 
 ## Persistence Mapping
 
@@ -100,7 +112,3 @@ erDiagram
   fills ||--o{ ledger_entries : links
   portfolios ||--o{ ledger_entries : contains
 ```
-
-## TODO
-
-- Add rounding and precision rules.

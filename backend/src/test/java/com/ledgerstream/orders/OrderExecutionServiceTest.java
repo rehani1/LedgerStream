@@ -88,8 +88,14 @@ class OrderExecutionServiceTest {
 	@Test
 	void marketBuyUsesAskCreatesFillMarksFilledAndPublishesEvent() {
 		TradeOrder order = order(OrderSide.BUY, OrderType.MARKET, OrderStatus.PENDING, new BigDecimal("10.000000"));
-		when(quoteQueryService.getLatestQuote("AAPL")).thenReturn(quote(new BigDecimal("187.360000"), new BigDecimal("187.480000"), new BigDecimal("187.420000")));
-		when(portfolioRepository.findByUserId(USER_ID)).thenReturn(Optional.of(portfolio(new BigDecimal("5000.00"))));
+		Portfolio portfolio = portfolio(new BigDecimal("5000.00"));
+		when(quoteQueryService.getLatestQuote("AAPL")).thenReturn(quote(
+			new BigDecimal("187.360000"),
+			new BigDecimal("187.480000"),
+			new BigDecimal("187.420000")
+		));
+		when(portfolioRepository.findByUserId(USER_ID)).thenReturn(Optional.of(portfolio));
+		when(positionRepository.findByUserIdAndSymbolTicker(USER_ID, "AAPL")).thenReturn(Optional.empty());
 		when(orderRepository.save(order)).thenReturn(order);
 		when(fillRepository.save(any(Fill.class))).thenAnswer(invocation -> persistFill(invocation.getArgument(0)));
 
@@ -105,6 +111,17 @@ class OrderExecutionServiceTest {
 		assertThat(fill.getFee()).isEqualByComparingTo("0.00");
 		assertThat(fill.getFilledAt()).isEqualTo(NOW);
 		assertThat(order.getStatus()).isEqualTo(OrderStatus.FILLED);
+		assertThat(portfolio.getCashBalance()).isEqualByComparingTo("3125.20");
+
+		ArgumentCaptor<Position> positionCaptor = ArgumentCaptor.forClass(Position.class);
+		verify(positionRepository).save(positionCaptor.capture());
+		Position position = positionCaptor.getValue();
+		assertThat(position.getUser()).isEqualTo(user);
+		assertThat(position.getSymbol()).isEqualTo(symbol);
+		assertThat(position.getQuantity()).isEqualByComparingTo("10.000000");
+		assertThat(position.getAvgCost()).isEqualByComparingTo("187.480000");
+		assertThat(position.getRealizedPnl()).isEqualByComparingTo("0.00");
+		verify(portfolioRepository).save(portfolio);
 
 		ArgumentCaptor<OrderFilledEvent> eventCaptor = ArgumentCaptor.forClass(OrderFilledEvent.class);
 		verify(eventPublisher).publishOrderFilled(eventCaptor.capture());
@@ -124,6 +141,7 @@ class OrderExecutionServiceTest {
 		TradeOrder order = order(OrderSide.BUY, OrderType.MARKET, OrderStatus.PENDING, new BigDecimal("1.000000"));
 		when(quoteQueryService.getLatestQuote("AAPL")).thenReturn(quote(new BigDecimal("187.360000"), null, new BigDecimal("187.420000")));
 		when(portfolioRepository.findByUserId(USER_ID)).thenReturn(Optional.of(portfolio(new BigDecimal("5000.00"))));
+		when(positionRepository.findByUserIdAndSymbolTicker(USER_ID, "AAPL")).thenReturn(Optional.empty());
 		when(orderRepository.save(order)).thenReturn(order);
 		when(fillRepository.save(any(Fill.class))).thenAnswer(invocation -> persistFill(invocation.getArgument(0)));
 
@@ -135,10 +153,46 @@ class OrderExecutionServiceTest {
 	}
 
 	@Test
-	void marketSellUsesBidWhenSharesAreAvailable() {
+	void marketBuyRecalculatesWeightedAverageCostForExistingPosition() {
+		TradeOrder order = order(OrderSide.BUY, OrderType.MARKET, OrderStatus.PENDING, new BigDecimal("3.000000"));
+		Portfolio portfolio = portfolio(new BigDecimal("1000.00"));
+		Position position = position(
+			new BigDecimal("2.000000"),
+			new BigDecimal("100.000000"),
+			new BigDecimal("12.34")
+		);
+		when(quoteQueryService.getLatestQuote("AAPL")).thenReturn(quote(
+			new BigDecimal("159.900000"),
+			new BigDecimal("160.000000"),
+			new BigDecimal("159.950000")
+		));
+		when(portfolioRepository.findByUserId(USER_ID)).thenReturn(Optional.of(portfolio));
+		when(positionRepository.findByUserIdAndSymbolTicker(USER_ID, "AAPL")).thenReturn(Optional.of(position));
+		when(orderRepository.save(order)).thenReturn(order);
+		when(fillRepository.save(any(Fill.class))).thenAnswer(invocation -> persistFill(invocation.getArgument(0)));
+
+		executionService.execute(order);
+
+		assertThat(portfolio.getCashBalance()).isEqualByComparingTo("520.00");
+		assertThat(position.getQuantity()).isEqualByComparingTo("5.000000");
+		assertThat(position.getAvgCost()).isEqualByComparingTo("136.000000");
+		assertThat(position.getRealizedPnl()).isEqualByComparingTo("12.34");
+		verify(positionRepository).save(position);
+		verify(portfolioRepository).save(portfolio);
+	}
+
+	@Test
+	void marketSellUsesBidAndSettlesPartialSaleWhenSharesAreAvailable() {
 		TradeOrder order = order(OrderSide.SELL, OrderType.MARKET, OrderStatus.PENDING, new BigDecimal("4.000000"));
-		when(quoteQueryService.getLatestQuote("AAPL")).thenReturn(quote(new BigDecimal("187.360000"), new BigDecimal("187.480000"), new BigDecimal("187.420000")));
-		when(positionRepository.findByUserIdAndSymbolTicker(USER_ID, "AAPL")).thenReturn(Optional.of(position(new BigDecimal("5.000000"))));
+		Portfolio portfolio = portfolio(new BigDecimal("1000.00"));
+		Position position = position(new BigDecimal("5.000000"));
+		when(quoteQueryService.getLatestQuote("AAPL")).thenReturn(quote(
+			new BigDecimal("187.360000"),
+			new BigDecimal("187.480000"),
+			new BigDecimal("187.420000")
+		));
+		when(portfolioRepository.findByUserId(USER_ID)).thenReturn(Optional.of(portfolio));
+		when(positionRepository.findByUserIdAndSymbolTicker(USER_ID, "AAPL")).thenReturn(Optional.of(position));
 		when(orderRepository.save(order)).thenReturn(order);
 		when(fillRepository.save(any(Fill.class))).thenAnswer(invocation -> persistFill(invocation.getArgument(0)));
 
@@ -148,13 +202,48 @@ class OrderExecutionServiceTest {
 		verify(fillRepository).save(fillCaptor.capture());
 		assertThat(fillCaptor.getValue().getPrice()).isEqualByComparingTo("187.360000");
 		assertThat(order.getStatus()).isEqualTo(OrderStatus.FILLED);
+		assertThat(portfolio.getCashBalance()).isEqualByComparingTo("1749.44");
+		assertThat(position.getQuantity()).isEqualByComparingTo("1.000000");
+		assertThat(position.getAvgCost()).isEqualByComparingTo("100.000000");
+		assertThat(position.getRealizedPnl()).isEqualByComparingTo("349.44");
+		verify(positionRepository).save(position);
+		verify(portfolioRepository).save(portfolio);
 		verify(eventPublisher).publishOrderFilled(any(OrderFilledEvent.class));
+	}
+
+	@Test
+	void marketSellResetsAverageCostAfterFullSale() {
+		TradeOrder order = order(OrderSide.SELL, OrderType.MARKET, OrderStatus.PENDING, new BigDecimal("5.000000"));
+		Portfolio portfolio = portfolio(new BigDecimal("1000.00"));
+		Position position = position(new BigDecimal("5.000000"));
+		when(quoteQueryService.getLatestQuote("AAPL")).thenReturn(quote(
+			new BigDecimal("125.000000"),
+			new BigDecimal("125.100000"),
+			new BigDecimal("125.050000")
+		));
+		when(portfolioRepository.findByUserId(USER_ID)).thenReturn(Optional.of(portfolio));
+		when(positionRepository.findByUserIdAndSymbolTicker(USER_ID, "AAPL")).thenReturn(Optional.of(position));
+		when(orderRepository.save(order)).thenReturn(order);
+		when(fillRepository.save(any(Fill.class))).thenAnswer(invocation -> persistFill(invocation.getArgument(0)));
+
+		executionService.execute(order);
+
+		assertThat(portfolio.getCashBalance()).isEqualByComparingTo("1625.00");
+		assertThat(position.getQuantity()).isEqualByComparingTo("0.000000");
+		assertThat(position.getAvgCost()).isEqualByComparingTo("0.000000");
+		assertThat(position.getRealizedPnl()).isEqualByComparingTo("125.00");
+		verify(positionRepository).save(position);
+		verify(portfolioRepository).save(portfolio);
 	}
 
 	@Test
 	void insufficientCashRejectsOrderWithoutFill() {
 		TradeOrder order = order(OrderSide.BUY, OrderType.MARKET, OrderStatus.PENDING, new BigDecimal("10.000000"));
-		when(quoteQueryService.getLatestQuote("AAPL")).thenReturn(quote(new BigDecimal("187.360000"), new BigDecimal("187.480000"), new BigDecimal("187.420000")));
+		when(quoteQueryService.getLatestQuote("AAPL")).thenReturn(quote(
+			new BigDecimal("187.360000"),
+			new BigDecimal("187.480000"),
+			new BigDecimal("187.420000")
+		));
 		when(portfolioRepository.findByUserId(USER_ID)).thenReturn(Optional.of(portfolio(new BigDecimal("100.00"))));
 		when(orderRepository.save(order)).thenReturn(order);
 
@@ -167,9 +256,33 @@ class OrderExecutionServiceTest {
 	}
 
 	@Test
+	void missingPortfolioRejectsOrderWithoutFill() {
+		TradeOrder order = order(OrderSide.BUY, OrderType.MARKET, OrderStatus.PENDING, new BigDecimal("1.000000"));
+		when(quoteQueryService.getLatestQuote("AAPL")).thenReturn(quote(
+			new BigDecimal("187.360000"),
+			new BigDecimal("187.480000"),
+			new BigDecimal("187.420000")
+		));
+		when(portfolioRepository.findByUserId(USER_ID)).thenReturn(Optional.empty());
+		when(orderRepository.save(order)).thenReturn(order);
+
+		executionService.execute(order);
+
+		assertThat(order.getStatus()).isEqualTo(OrderStatus.REJECTED);
+		assertThat(order.getRejectionReason()).isEqualTo("Portfolio not found");
+		verify(fillRepository, never()).save(any(Fill.class));
+		verify(positionRepository, never()).save(any(Position.class));
+		verify(eventPublisher, never()).publishOrderFilled(any(OrderFilledEvent.class));
+	}
+
+	@Test
 	void insufficientSharesRejectsOrderWithoutFill() {
 		TradeOrder order = order(OrderSide.SELL, OrderType.MARKET, OrderStatus.PENDING, new BigDecimal("10.000000"));
-		when(quoteQueryService.getLatestQuote("AAPL")).thenReturn(quote(new BigDecimal("187.360000"), new BigDecimal("187.480000"), new BigDecimal("187.420000")));
+		when(quoteQueryService.getLatestQuote("AAPL")).thenReturn(quote(
+			new BigDecimal("187.360000"),
+			new BigDecimal("187.480000"),
+			new BigDecimal("187.420000")
+		));
 		when(positionRepository.findByUserIdAndSymbolTicker(USER_ID, "AAPL")).thenReturn(Optional.of(position(new BigDecimal("2.000000"))));
 		when(orderRepository.save(order)).thenReturn(order);
 
@@ -246,13 +359,17 @@ class OrderExecutionServiceTest {
 	}
 
 	private Position position(BigDecimal quantity) {
+		return position(quantity, new BigDecimal("100.000000"), new BigDecimal("0.00"));
+	}
+
+	private Position position(BigDecimal quantity, BigDecimal avgCost, BigDecimal realizedPnl) {
 		Position position = new Position();
 		position.setId(UUID.randomUUID());
 		position.setUser(user);
 		position.setSymbol(symbol);
 		position.setQuantity(quantity);
-		position.setAvgCost(new BigDecimal("100.000000"));
-		position.setRealizedPnl(new BigDecimal("0.00"));
+		position.setAvgCost(avgCost);
+		position.setRealizedPnl(realizedPnl);
 		position.setUpdatedAt(NOW);
 		return position;
 	}
