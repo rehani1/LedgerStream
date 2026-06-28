@@ -42,7 +42,9 @@ Market-data worker tests validate deterministic CSV parsing, invalid row handlin
 
 ## Frontend Test Strategy
 
-Frontend tests use Vitest, React Testing Library, mocked API responses, and mocked quote stream callbacks to verify login form validation, quote dashboard rendering, stream connection states, order ticket validation, portfolio table rendering, risk summary rendering, and admin replay controls. The CI-friendly command is `npm run test:ci` from `frontend/`.
+Frontend tests use Vitest, React Testing Library, mocked API responses, and mocked quote stream callbacks to verify login form validation, quote dashboard rendering, stream connection states, order ticket validation, portfolio table rendering, risk summary rendering, and admin replay controls. The CI-friendly unit/component command is `npm run test:ci` from `frontend/`.
+
+Playwright E2E tests run the login, quote dashboard, paper order, order history, portfolio, and ledger browser flow. The default `npm run e2e` path uses mocked backend responses for deterministic CI execution. Setting `E2E_MOCK_API=false` runs the same browser flow against a seeded local backend stack, but that mode requires Docker Compose services, demo credentials, and market data to be available.
 
 ## TODO
 

@@ -150,6 +150,7 @@ npm install
 npm run build
 npm test -- --run
 npm run test:ci
+npm run e2e
 npm run dev
 ```
 
@@ -166,6 +167,27 @@ The portfolio route renders cash, total equity, realized and unrealized P&L, ope
 The orders route includes a market order ticket with per-submission idempotency keys, double-submit protection, order status feedback, cancellation for pending orders, and a user-scoped order history table.
 
 The risk route renders latest total equity, cash, gross exposure, concentration, unrealized P&L, and a historical risk chart from the backend risk snapshot APIs.
+
+### End-to-End Tests
+
+Playwright E2E tests live under `frontend/e2e/`. The default `npm run e2e` path starts the Vite dev server and uses mocked backend responses, which makes the browser flow CI-friendly without Docker.
+
+Install the Chromium browser once per machine or CI image:
+
+```bash
+cd frontend
+npm run e2e:install
+```
+
+To run the same browser flow against a seeded local stack, start Compose with demo data and disable API mocks:
+
+```bash
+DEMO_SEED_ENABLED=true DEMO_USER_PASSWORD=Password123! docker compose --profile worker up --build -d
+cd frontend
+E2E_MOCK_API=false E2E_DEMO_EMAIL=demo@example.com E2E_DEMO_PASSWORD=Password123! npx playwright test
+cd ..
+docker compose down
+```
 
 ### Demo Data
 
