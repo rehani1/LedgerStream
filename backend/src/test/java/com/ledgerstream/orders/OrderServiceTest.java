@@ -162,6 +162,9 @@ class OrderServiceTest {
 		);
 
 		assertThat(result.order().id()).isEqualTo(existingOrder.getId());
+		assertThat(result.order().status()).isEqualTo(OrderStatus.PENDING);
+		assertThat(result.order().symbol()).isEqualTo("AAPL");
+		assertThat(result.order().quantity()).isEqualByComparingTo("10.000000");
 		assertThat(result.created()).isFalse();
 		verify(orderRepository, never()).save(any(TradeOrder.class));
 		verify(userRepository, never()).findById(any(UUID.class));

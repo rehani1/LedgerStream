@@ -105,6 +105,25 @@ class RiskCalculationServiceTest {
 	}
 
 	@Test
+	void recordSnapshotCalculatesLargestPositionConcentrationAgainstTotalEquity() {
+		Portfolio portfolio = portfolio(user, new BigDecimal("500.00"));
+		Position apple = position(user, symbol("AAPL"), new BigDecimal("5.000000"), new BigDecimal("90.000000"));
+		Position microsoft = position(user, symbol("MSFT"), new BigDecimal("10.000000"), new BigDecimal("20.000000"));
+		when(portfolioRepository.findByUserId(USER_ID)).thenReturn(Optional.of(portfolio));
+		when(positionRepository.findByUserId(USER_ID)).thenReturn(List.of(apple, microsoft));
+		when(quoteQueryService.getLatestQuote("AAPL")).thenReturn(quote("AAPL", new BigDecimal("100.000000")));
+		when(quoteQueryService.getLatestQuote("MSFT")).thenReturn(quote("MSFT", new BigDecimal("25.000000")));
+		when(riskSnapshotRepository.save(any(RiskSnapshot.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+		RiskSnapshot snapshot = riskCalculationService.recordSnapshot(USER_ID);
+
+		assertThat(snapshot.getTotalEquity()).isEqualByComparingTo("1250.00");
+		assertThat(snapshot.getGrossExposure()).isEqualByComparingTo("750.00");
+		assertThat(snapshot.getLargestPositionPct()).isEqualByComparingTo("40.0000");
+		assertThat(snapshot.getUnrealizedPnl()).isEqualByComparingTo("100.00");
+	}
+
+	@Test
 	void recordSnapshotFallsBackToCostBasisWhenLatestQuoteIsMissing() {
 		Portfolio portfolio = portfolio(user, new BigDecimal("100.00"));
 		Position position = position(user, symbol("AAPL"), new BigDecimal("4.000000"), new BigDecimal("50.000000"));

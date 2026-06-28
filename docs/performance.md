@@ -18,6 +18,18 @@ This document will contain measured results only. Do not fill in latency, throug
 
 TODO: document machine or CI environment, service versions, virtual users, duration, and data set after the tests are run.
 
+## Backend Correctness Coverage
+
+Fast backend unit tests cover deterministic financial calculations and safety checks before load measurements are collected:
+
+- market BUY cash settlement, quantity updates, and weighted average cost
+- market SELL cash settlement, quantity updates, average-cost reset, and realized P&L
+- insufficient cash and insufficient share rejection paths
+- idempotent order submission behavior
+- risk gross exposure, unrealized P&L, and largest-position concentration
+
+These tests do not produce throughput or latency claims; they are correctness guards for the later integration and load-test phases.
+
 ## TODO
 
 - Add k6 scripts.

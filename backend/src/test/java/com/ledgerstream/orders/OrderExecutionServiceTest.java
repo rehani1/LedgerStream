@@ -204,12 +204,23 @@ class OrderExecutionServiceTest {
 
 		executionService.execute(order);
 
+		ArgumentCaptor<Fill> fillCaptor = ArgumentCaptor.forClass(Fill.class);
+		verify(fillRepository).save(fillCaptor.capture());
+		Fill fill = fillCaptor.getValue();
+		assertThat(fill.getPrice()).isEqualByComparingTo("160.000000");
+		assertThat(fill.getQuantity()).isEqualByComparingTo("3.000000");
 		assertThat(portfolio.getCashBalance()).isEqualByComparingTo("520.00");
 		assertThat(position.getQuantity()).isEqualByComparingTo("5.000000");
 		assertThat(position.getAvgCost()).isEqualByComparingTo("136.000000");
 		assertThat(position.getRealizedPnl()).isEqualByComparingTo("12.34");
 		verify(positionRepository).save(position);
 		verify(portfolioRepository).save(portfolio);
+		verify(portfolioLedgerService).appendFill(
+			portfolio,
+			fill,
+			new BigDecimal("-480.00"),
+			new BigDecimal("3.000000")
+		);
 	}
 
 	@Test
@@ -348,6 +359,19 @@ class OrderExecutionServiceTest {
 
 		assertThat(order.getStatus()).isEqualTo(OrderStatus.REJECTED);
 		assertThat(order.getRejectionReason()).isEqualTo("Insufficient shares");
+		verify(auditService).record(
+			eq(user),
+			eq("ORDER_REJECTED"),
+			eq(null),
+			eq(Map.of(
+				"orderId", order.getId().toString(),
+				"symbol", "AAPL",
+				"side", "SELL",
+				"orderType", "MARKET",
+				"quantity", new BigDecimal("10.000000"),
+				"reason", "Insufficient shares"
+			))
+		);
 		verify(fillRepository, never()).save(any(Fill.class));
 		verify(portfolioLedgerService, never()).appendFill(any(), any(), any(), any());
 		verify(riskCalculationService, never()).recordSnapshot(any());

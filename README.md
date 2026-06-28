@@ -72,6 +72,8 @@ docker compose up -d prometheus grafana backend
 
 Open `http://localhost:3000` and use the Compose Grafana credentials: `admin` / `ledgerstream-local`.
 
+Backend unit tests cover the core financial invariants: fill settlement, average cost, realized P&L, rejection paths, idempotency, and risk concentration.
+
 Implemented auth endpoints:
 
 - `POST /api/auth/register`
