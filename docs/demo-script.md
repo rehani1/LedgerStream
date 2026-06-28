@@ -40,7 +40,7 @@ As of the June 28, 2026 smoke test, the Render backend health endpoint was `UP`;
 2. Log in with a demo account.
 3. Start deterministic market replay or verify it is already running.
 4. Watch live quote updates.
-5. Submit a paper market order.
+5. Submit a paper market or limit order.
 6. Show the order status and fill.
 7. Show portfolio cash and position updates.
 8. Show append-only ledger entries.
@@ -54,7 +54,7 @@ Capture real screenshots after the public frontend API base URL, backend CORS, a
 | Screenshot | Placeholder path | Capture criteria |
 | --- | --- | --- |
 | Dashboard | `docs/assets/demo/dashboard.png` | Authenticated dashboard showing symbols, quote cards, stream state, and chart. |
-| Order ticket | `docs/assets/demo/order-ticket.png` | Market BUY order form with symbol, side, quantity, and idempotent submit state. |
+| Order ticket | `docs/assets/demo/order-ticket.png` | Order form with symbol, side, type, quantity, limit price when selected, and idempotent submit state. |
 | Portfolio | `docs/assets/demo/portfolio.png` | Portfolio summary with cash, total equity, positions, and P&L fields. |
 | Ledger | `docs/assets/demo/ledger.png` | Append-only ledger table showing cash and quantity deltas from a fill. |
 | Risk dashboard | `docs/assets/demo/risk-dashboard.png` | Latest risk snapshot and historical risk chart. |
@@ -91,7 +91,7 @@ Use this when validating the deployed backend before browser testing. Do not pri
 5. Call `GET /api/portfolio/positions`.
 6. Call `GET /api/portfolio/ledger`.
 7. Call `GET /api/symbols/AAPL/quote`.
-8. Submit a small market order with a unique `Idempotency-Key`.
+8. Submit a small market or limit order with a unique `Idempotency-Key`.
 9. Call `GET /api/orders`.
 10. Logout with `POST /api/auth/logout`.
 
@@ -126,4 +126,4 @@ docker compose --profile worker up --build market-data-worker
 
 After logging in locally, open the dashboard to see supported symbols, latest quote rows, stream connection state, and the selected symbol price chart. The frontend reads historical quote data from `/api/symbols/{ticker}/history` and consumes the authenticated SSE quote stream with the current access token.
 
-Open the orders route, select a symbol, choose buy or sell, submit a market paper order, and watch the order history show pending, filled, rejected, or cancelled status. Then open the portfolio route to confirm cash, total equity, realized and unrealized P&L, open positions, and paginated ledger entries update from the backend portfolio APIs. Open the risk route to show total equity, gross exposure, largest-position concentration, unrealized P&L, and the historical snapshot chart.
+Open the orders route, select a symbol, choose buy or sell, choose market or limit, submit a paper order, and watch the order history show pending, filled, rejected, or cancelled status. Then open the portfolio route to confirm cash, total equity, realized and unrealized P&L, open positions, and paginated ledger entries update from the backend portfolio APIs. Open the risk route to show total equity, gross exposure, largest-position concentration, unrealized P&L, and the historical snapshot chart.

@@ -58,7 +58,7 @@ Detailed system design: [Architecture](docs/architecture.md)
 - Deterministic CSV market replay through a Python worker.
 - Kafka-compatible JSON event contracts for `market.tick`, `order.created`, `order.filled`, `portfolio.updated`, `risk.updated`, and `audit.event`.
 - Idempotent paper-order creation, user-scoped order history, and cancellation for pending orders.
-- Market order simulation with explicit rejection reasons for missing quotes, insufficient cash, insufficient shares, and missing portfolio state.
+- Market order simulation with explicit rejection reasons and crossed limit-order simulation with pending cancellation support.
 - Transactional fill settlement that updates cash, positions, ledger entries, and risk snapshots.
 - Portfolio summary, positions, ledger, latest risk, and risk history APIs.
 - Structured JSON logs, request IDs, Prometheus metrics, and Grafana provisioning.
@@ -180,7 +180,7 @@ Security details: [Security](docs/security.md)
 - Kafka publishes are not backed by an outbox table yet.
 - SSE subscription state is in memory; multi-instance deployment needs sticky routing or shared fanout.
 - Rate limits are in-memory per backend instance; Redis-backed distributed limits are future work.
-- Limit orders can be accepted as pending, but matching is future work.
+- Limit orders fill against the latest last price when crossed; there are no partial fills or time-in-force controls yet.
 - Refresh tokens are stored in browser `sessionStorage` for the MVP; HttpOnly cookies are the preferred production improvement.
 - Product screenshots and a 60-90 second demo video are placeholders until captured.
 
@@ -233,7 +233,7 @@ Local demo seed is disabled by default. Enable it only for local or demo environ
 - Add broker-backed end-to-end event-flow tests.
 - Add an outbox or transactional messaging layer.
 - Add dead-letter topics and retry handling.
-- Add limit-order matching.
+- Add advanced order controls such as time in force and partial-fill modeling.
 - Add historical portfolio snapshots.
 - Add a simple backtesting service.
 - Add archive export paths.

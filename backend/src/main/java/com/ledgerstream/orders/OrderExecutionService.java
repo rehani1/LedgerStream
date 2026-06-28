@@ -96,19 +96,30 @@ public class OrderExecutionService {
 		execute(order, null);
 	}
 
+	@Transactional
+	public void executePendingLimitOrders(String ticker) {
+		orderRepository.findBySymbolTickerAndStatusAndOrderType(ticker, OrderStatus.PENDING, OrderType.LIMIT)
+			.forEach(order -> execute(order, null));
+	}
+
 	private void execute(TradeOrder order, String requestId) {
-		if (order.getStatus() != OrderStatus.PENDING || order.getOrderType() != OrderType.MARKET) {
+		if (order.getStatus() != OrderStatus.PENDING) {
 			return;
 		}
 
 		QuoteResponse quote = latestQuote(order);
 		if (quote == null) {
-			reject(order, "No market quote available", requestId);
+			if (order.getOrderType() == OrderType.MARKET) {
+				reject(order, "No market quote available", requestId);
+			}
 			return;
 		}
 
-		BigDecimal executionPrice = executionPrice(order.getSide(), quote);
-		if (executionPrice == null || executionPrice.compareTo(BigDecimal.ZERO) <= 0) {
+		BigDecimal executionPrice = executionPrice(order, quote);
+		if (executionPrice == null) {
+			return;
+		}
+		if (executionPrice.compareTo(BigDecimal.ZERO) <= 0) {
 			reject(order, "No executable market price available", requestId);
 			return;
 		}
@@ -164,11 +175,29 @@ public class OrderExecutionService {
 		}
 	}
 
-	private BigDecimal executionPrice(OrderSide side, QuoteResponse quote) {
-		if (side == OrderSide.BUY) {
+	private BigDecimal executionPrice(TradeOrder order, QuoteResponse quote) {
+		if (order.getOrderType() == OrderType.LIMIT) {
+			return executableLimitPrice(order, quote);
+		}
+		if (order.getSide() == OrderSide.BUY) {
 			return quote.ask() == null ? quote.last() : quote.ask();
 		}
 		return quote.bid() == null ? quote.last() : quote.bid();
+	}
+
+	private BigDecimal executableLimitPrice(TradeOrder order, QuoteResponse quote) {
+		BigDecimal latestPrice = quote.last();
+		BigDecimal limitPrice = order.getLimitPrice();
+		if (latestPrice == null || limitPrice == null) {
+			return null;
+		}
+		if (order.getSide() == OrderSide.BUY && latestPrice.compareTo(limitPrice) <= 0) {
+			return latestPrice;
+		}
+		if (order.getSide() == OrderSide.SELL && latestPrice.compareTo(limitPrice) >= 0) {
+			return latestPrice;
+		}
+		return null;
 	}
 
 	private boolean hasSufficientCash(Portfolio portfolio, TradeOrder order, BigDecimal executionPrice) {

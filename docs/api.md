@@ -249,21 +249,24 @@ The order API creates user-scoped paper orders with a required `Idempotency-Key`
 
 New orders start as `PENDING` and publish an `order.created` event. Pending orders can transition to `CANCELLED`; non-pending cancellation attempts return a conflict error.
 
-Market order execution is asynchronous from the REST submission path. The backend consumes `order.created`, looks up the stored order, and executes only `MARKET` orders that are still `PENDING`. `LIMIT` orders intentionally remain pending until the limit-order matching flow is implemented.
+Order execution is asynchronous from the REST submission path. The backend consumes `order.created`, looks up the stored order, and evaluates `PENDING` market and limit orders. Accepted market ticks also re-check pending limit orders for that symbol.
 
-Current market execution assumptions:
+Current execution assumptions:
 
-- BUY orders execute at the latest ask price, falling back to last price when ask is unavailable.
-- SELL orders execute at the latest bid price, falling back to last price when bid is unavailable.
-- Missing quotes or non-positive executable prices reject the order.
+- Market BUY orders execute at the latest ask price, falling back to last price when ask is unavailable.
+- Market SELL orders execute at the latest bid price, falling back to last price when bid is unavailable.
+- BUY limit orders fill when the latest last price is less than or equal to `limitPrice`; SELL limit orders fill when the latest last price is greater than or equal to `limitPrice`.
+- Limit orders that do not cross remain `PENDING` and can be cancelled.
+- Missing quotes reject market orders but leave limit orders pending for later ticks.
+- Non-positive executable prices, insufficient cash, insufficient shares, or missing portfolios reject the order.
 - BUY orders require enough portfolio cash for notional value plus the current zero-fee model.
 - SELL orders require enough existing position quantity.
-- Filled market orders create a fill, settle portfolio cash and position state in the same transaction, mark the order `FILLED`, and publish `order.filled`.
-- Rejected market orders are marked `REJECTED` with a safe rejection reason and do not create fills.
+- Filled orders create a fill, settle portfolio cash and position state in the same transaction, mark the order `FILLED`, and publish `order.filled`.
+- Rejected orders are marked `REJECTED` with a safe rejection reason and do not create fills.
 
 Portfolio settlement uses these rounding assumptions: cash, fees, and realized P&L are rounded to 2 decimal places with `HALF_UP`; prices, quantities, and average cost are rounded to 6 decimal places with `HALF_UP`. BUY fills decrease cash by `price * quantity + fee`, increase quantity, and recalculate weighted average cost. SELL fills increase cash by `price * quantity - fee`, decrease quantity, and add realized P&L as `(execution price - average cost) * quantity - fee`. A full sell leaves a zero-quantity position row with average cost reset to zero.
 
-Each filled market order also appends one ledger entry in the same transaction as the fill, cash update, and position update. BUY fill ledger rows record a negative cash delta and positive quantity delta. SELL fill ledger rows record a positive cash delta and negative quantity delta. The ledger row links the user, portfolio, order, fill, symbol, execution price, and metadata including side, order type, and fee.
+Each filled order also appends one ledger entry in the same transaction as the fill, cash update, and position update. BUY fill ledger rows record a negative cash delta and positive quantity delta. SELL fill ledger rows record a positive cash delta and negative quantity delta. The ledger row links the user, portfolio, order, fill, symbol, execution price, and metadata including side, order type, and fee.
 
 Filled orders now create risk snapshots and publish `risk.updated`. Portfolio summary events remain a follow-on layer.
 
@@ -513,6 +516,16 @@ curl -sS -X POST "$BASE_URL/api/orders" \
   -H 'Content-Type: application/json' \
   -H 'Idempotency-Key: demo-order-0001' \
   -d '{"symbol":"AAPL","side":"BUY","orderType":"MARKET","quantity":1}'
+```
+
+Create a paper limit order:
+
+```bash
+curl -sS -X POST "$BASE_URL/api/orders" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: demo-limit-order-0001' \
+  -d '{"symbol":"AAPL","side":"BUY","orderType":"LIMIT","quantity":1,"limitPrice":180.00}'
 ```
 
 Read portfolio and ledger state:

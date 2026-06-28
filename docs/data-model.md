@@ -82,7 +82,7 @@ erDiagram
 | `idx_price_ticks_symbol_ts_desc` | Latest quote fallback and bounded quote history reads. |
 | `uq_price_ticks_symbol_ts_source` | Deterministic tick replay idempotency. |
 | `idx_orders_user_created_desc` | User-scoped order history. |
-| `idx_orders_symbol_status` | Pending order evaluation by symbol when matching expands beyond market orders. |
+| `idx_orders_symbol_status` | Pending order evaluation by symbol for limit matching and diagnostics. |
 | `idx_fills_order_id` | Order detail and reconciliation queries. |
 | `idx_fills_symbol_filled_at` | Symbol execution history and diagnostics. |
 | `uq_positions_user_symbol` | Current position lookup and settlement update. |
@@ -113,20 +113,20 @@ flowchart TD
   Risk --> Events[Publish order.filled and risk.updated]
 ```
 
-Order creation and market execution are intentionally separate service flows. Submission records the user's order intent and publishes `order.created`. Execution reloads the stored order, verifies it is still `PENDING` and `MARKET`, checks the latest executable quote, and then settles or rejects the order.
+Order creation and execution are intentionally separate service flows. Submission records the user's order intent and publishes `order.created`. Execution reloads the stored order, verifies it is still `PENDING`, checks the latest executable quote, and then settles, rejects, or leaves a non-crossed limit order pending. Accepted market ticks also re-evaluate pending limit orders for the ticked symbol.
 
-The market execution transaction includes order status, fill insertion, portfolio cash update, position update, ledger append, and risk snapshot creation. `PortfolioLedgerService.appendFill` uses mandatory transaction propagation, so ledger rows cannot be appended outside the settlement transaction.
+The order execution transaction includes order status, fill insertion, portfolio cash update, position update, ledger append, and risk snapshot creation. `PortfolioLedgerService.appendFill` uses mandatory transaction propagation, so ledger rows cannot be appended outside the settlement transaction.
 
 Kafka event publishing is currently issued from service code and is not backed by a database outbox. The database transaction protects the financial state; an outbox is the next reliability step if event delivery must be recovered after process failure.
 
 ## Order Lifecycle
 
 - `PENDING`: created by `POST /api/orders` after validation and idempotency lookup.
-- `FILLED`: assigned by market execution after a fill is created and settlement completes.
-- `REJECTED`: assigned by market execution when no quote exists, no positive executable price exists, the buyer has insufficient cash, the seller has insufficient shares, or the portfolio is missing.
+- `FILLED`: assigned by order execution after a fill is created and settlement completes.
+- `REJECTED`: assigned by order execution when a market order has no quote, no positive executable price exists, the buyer has insufficient cash, the seller has insufficient shares, or the portfolio is missing.
 - `CANCELLED`: assigned by the user cancellation endpoint while the order is still pending.
 
-Attempts to cancel `FILLED`, `CANCELLED`, or `REJECTED` orders return a conflict. Limit orders can be stored as `PENDING`, but limit matching is not implemented yet.
+Attempts to cancel `FILLED`, `CANCELLED`, or `REJECTED` orders return a conflict. Limit orders stay `PENDING` while not crossed, can be cancelled while pending, and fill when a later quote crosses their limit.
 
 ## Accounting Rules
 
@@ -142,7 +142,7 @@ Attempts to cancel `FILLED`, `CANCELLED`, or `REJECTED` orders return a conflict
 
 `ledger_entries` is the accounting journal. Normal application code inserts ledger rows through `PortfolioLedgerService` and does not update or delete existing rows.
 
-Each filled market order currently creates one ledger row:
+Each filled order currently creates one ledger row:
 
 | Entry type | Cash delta | Quantity delta | Links |
 | --- | ---: | ---: | --- |
@@ -164,7 +164,7 @@ When a latest quote is unavailable for a position, the read model uses average c
 
 ## Market Data Persistence
 
-`market.tick` ingestion validates symbol, timestamp, bid, ask, last price, volume, and source. Accepted ticks resolve the symbol, insert a `price_ticks` row if `(symbol_id, ts, source)` has not already been seen, update the Redis latest quote cache, broadcast matching SSE subscribers, and record risk snapshots for users with open positions in that symbol.
+`market.tick` ingestion validates symbol, timestamp, bid, ask, last price, volume, and source. Accepted ticks resolve the symbol, insert a `price_ticks` row if `(symbol_id, ts, source)` has not already been seen, update the Redis latest quote cache, broadcast matching SSE subscribers, record risk snapshots for users with open positions in that symbol, and re-check pending limit orders for that symbol.
 
 Redis stores latest quotes under `latest_quote:{SYMBOL}`. No TTL is currently applied; quote freshness is determined from the embedded timestamp, and quote APIs fall back to PostgreSQL if Redis misses or read access fails.
 

@@ -250,6 +250,36 @@ class OrderServiceTest {
 	}
 
 	@Test
+	void cancelPendingLimitOrderTransitionsToCancelled() {
+		UUID orderId = UUID.randomUUID();
+		TradeOrder pendingOrder = order(OrderStatus.PENDING);
+		pendingOrder.setId(orderId);
+		pendingOrder.setOrderType(OrderType.LIMIT);
+		pendingOrder.setLimitPrice(new BigDecimal("180.000000"));
+		when(orderRepository.findByIdAndUserId(orderId, USER_ID)).thenReturn(Optional.of(pendingOrder));
+		when(orderRepository.save(pendingOrder)).thenReturn(pendingOrder);
+
+		OrderResponse response = orderService.cancelOrder(authenticatedUser, orderId, "request-cancel-2");
+
+		assertThat(response.status()).isEqualTo(OrderStatus.CANCELLED);
+		assertThat(response.orderType()).isEqualTo(OrderType.LIMIT);
+		assertThat(response.limitPrice()).isEqualByComparingTo("180.000000");
+		verify(orderRepository).save(pendingOrder);
+		verify(auditService).record(
+			eq(user),
+			eq("ORDER_CANCELLED"),
+			eq("request-cancel-2"),
+			eq(Map.of(
+				"orderId", orderId.toString(),
+				"symbol", "AAPL",
+				"side", "BUY",
+				"orderType", "LIMIT",
+				"quantity", new BigDecimal("10.000000")
+			))
+		);
+	}
+
+	@Test
 	void cancelFilledOrderFailsWithConflict() {
 		UUID orderId = UUID.randomUUID();
 		when(orderRepository.findByIdAndUserId(orderId, USER_ID)).thenReturn(Optional.of(order(OrderStatus.FILLED)));

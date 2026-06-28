@@ -2,7 +2,7 @@
 
 ## Overview
 
-LedgerStream is an event-driven paper-trading system. Deterministic market data enters through a Python replay worker, moves through Redpanda, and is consumed by the Spring Boot backend for historical storage, hot quote cache updates, quote streaming, market order execution, portfolio accounting, risk snapshots, and audit logging.
+LedgerStream is an event-driven paper-trading system. Deterministic market data enters through a Python replay worker, moves through Redpanda, and is consumed by the Spring Boot backend for historical storage, hot quote cache updates, quote streaming, market and limit order execution, portfolio accounting, risk snapshots, and audit logging.
 
 The system intentionally models paper trading only. There is no real brokerage order placement path, and all financial mutations are scoped to authenticated LedgerStream users.
 
@@ -26,7 +26,7 @@ flowchart LR
 | Service | Runtime responsibility |
 | --- | --- |
 | `frontend` | Authenticated React dashboard for quotes, streaming prices, order entry, order history, portfolio, ledger, risk, and admin replay controls. |
-| `backend` | REST API, JWT and refresh-token auth, RBAC, SSE gateway, quote queries, order submission, market execution, portfolio ledger settlement, risk calculations, structured logs, metrics, and health checks. |
+| `backend` | REST API, JWT and refresh-token auth, RBAC, SSE gateway, quote queries, order submission, market and limit execution, portfolio ledger settlement, risk calculations, structured logs, metrics, and health checks. |
 | `market-data-worker` | Deterministic CSV replay, row validation, replay speed control, dry-run output, and normalized `market.tick` event publishing. |
 | `postgres` | Durable relational source of truth for users, tokens, symbols, ticks, orders, fills, portfolios, positions, ledger rows, risk snapshots, and audit events. |
 | `redis` | Hot latest-quote cache using `latest_quote:{SYMBOL}` keys. Quote APIs fall back to PostgreSQL when the cache misses or cache reads fail. |
@@ -45,6 +45,7 @@ sequenceDiagram
   participant Cache as Redis
   participant SSE as SSE clients
   participant Risk as Risk service
+  participant Orders as Order execution
 
   Worker->>Stream: publish market.tick
   Stream->>Backend: deliver MarketTickEvent
@@ -54,6 +55,7 @@ sequenceDiagram
   Backend->>Cache: update latest_quote:{SYMBOL}
   Backend->>SSE: broadcast quote event to matching subscribers
   Backend->>Risk: record snapshots for users holding the symbol
+  Backend->>Orders: evaluate pending limit orders for the symbol
 ```
 
 The worker fixture currently contains 25 ticks across `AAPL`, `MSFT`, `NVDA`, `TSLA`, and `SPY`. Each row is serialized as a plain JSON `market.tick` payload with a deterministic UUIDv5 `eventId`. The backend normalizes symbols to uppercase and rejects malformed ticks before any cache or ledger-facing work.
@@ -63,7 +65,7 @@ The worker fixture currently contains 25 ticks across `AAPL`, `MSFT`, `NVDA`, `T
 ```mermaid
 stateDiagram-v2
   [*] --> PENDING: POST /api/orders
-  PENDING --> FILLED: market order executes
+  PENDING --> FILLED: market executes or limit crosses
   PENDING --> REJECTED: no quote, no executable price, insufficient cash, insufficient shares, or missing portfolio
   PENDING --> CANCELLED: POST /api/orders/{id}/cancel
   FILLED --> [*]
@@ -71,7 +73,7 @@ stateDiagram-v2
   CANCELLED --> [*]
 ```
 
-Market orders are evaluated asynchronously from `order.created`. Limit orders can be accepted into `PENDING`, but the matching flow is not implemented yet. Cancelling is only allowed while an order is still `PENDING`.
+Market orders are evaluated asynchronously from `order.created`. Limit orders are evaluated on creation and whenever an accepted `market.tick` arrives for the same symbol. BUY limits fill when latest last price is less than or equal to the limit price; SELL limits fill when latest last price is greater than or equal to the limit price. Limits that do not cross remain `PENDING`. Cancelling is only allowed while an order is still `PENDING`.
 
 ## Order Execution Flow
 
@@ -96,21 +98,23 @@ sequenceDiagram
     Executor->>DB: load stored order
     Executor->>Cache: read latest executable quote
     Executor->>DB: fallback to newest price_ticks row on cache miss
-    alt Executable market order
+    alt Executable market order or crossed limit order
       Executor->>DB: fill, order FILLED, portfolio cash, position, ledger row, risk snapshot
       Executor->>Stream: publish order.filled and risk.updated
+    else Limit not crossed
+      Executor-->>DB: keep order PENDING
     else Not executable
       Executor->>DB: mark order REJECTED with reason and audit event
     end
   end
 ```
 
-BUY execution uses ask price with last-price fallback. SELL execution uses bid price with last-price fallback. The current fee model is zero-fee, but fills and ledger metadata already carry a fee field so a later fee model can be added without changing the ledger shape.
+Market BUY execution uses ask price with last-price fallback. Market SELL execution uses bid price with last-price fallback. Limit execution uses the latest last price once the configured limit crosses. The current fee model is zero-fee, but fills and ledger metadata already carry a fee field so a later fee model can be added without changing the ledger shape.
 
 ## Consistency Boundaries
 
 - `orders(user_id, idempotency_key)` is the duplicate-submission boundary. A duplicate request returns the existing order and does not publish another `order.created` event.
-- Market execution is a Spring transaction that updates order status, writes the fill, settles portfolio cash, updates the position, appends the ledger entry, records risk, and records rejection audit events when relevant.
+- Order execution is a Spring transaction that updates order status, writes the fill, settles portfolio cash, updates the position, appends the ledger entry, records risk, and records rejection audit events when relevant.
 - `PortfolioLedgerService` and `AuditService` require an existing transaction, which keeps ledger and audit writes tied to the domain mutation that caused them.
 - Market tick ingestion is transactional for symbol resolution, historical tick persistence, quote cache refresh, SSE broadcast trigger, and affected-user risk snapshots. Rejected tick events are counted and acknowledged by the consumer after logging.
 - Kafka publishes are issued by service code but are not backed by an outbox table yet. A crash between database commit and event acknowledgement is a known reliability gap for a later outbox or transactional messaging pass.
@@ -122,7 +126,7 @@ Spring Kafka is configured for Redpanda-compatible brokers. Producer JSON serial
 | Topic | Current use |
 | --- | --- |
 | `market.tick` | Produced by the worker and consumed by the backend quote ingestion path. |
-| `order.created` | Produced by order submission and consumed by market execution. |
+| `order.created` | Produced by order submission and consumed by order execution. |
 | `order.filled` | Produced after successful simulated execution. |
 | `portfolio.updated` | Contract exists for portfolio fanout; portfolio APIs currently read from PostgreSQL. |
 | `risk.updated` | Produced when a risk snapshot is recorded. |
@@ -137,7 +141,7 @@ The market tick connectivity listener can be enabled with `BACKEND_KAFKA_CONNECT
 - Duplicate replay ticks are idempotent at `(symbol_id, ts, source)`: historical insertion is skipped, but the latest quote cache and stream fanout can still reflect the event.
 - Redis read failures on quote APIs degrade to PostgreSQL fallback. Redis write or database failures during tick ingestion fail the event processing path and let the Kafka container handle the unexpected exception.
 - SSE send failures close the affected emitter and increment `ledgerstream_quote_stream_send_failures_total`.
-- Market orders reject with explicit persisted reasons when quote, price, cash, shares, or portfolio prerequisites are missing.
+- Market orders reject with explicit persisted reasons when quote, price, cash, shares, or portfolio prerequisites are missing. Limit orders without a quote or without a crossed price remain pending; crossed limits use the same cash, share, and portfolio checks before filling.
 - There is no production dead-letter queue or outbox processor yet. Those are documented tradeoffs rather than hidden guarantees.
 
 ## Security And Observability
