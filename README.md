@@ -2,149 +2,215 @@
 
 [![CI](https://github.com/rehani1/LedgerStream/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/rehani1/LedgerStream/actions/workflows/ci.yml)
 
-Real-Time Paper Trading & Risk Platform
+**Real-Time Paper Trading & Risk Platform**
 
-LedgerStream is an event-driven paper-trading platform that will ingest deterministic or live market data, stream quotes to authenticated clients, process paper orders, maintain an append-only portfolio ledger, calculate risk and P&L, and expose production-style observability and deployment artifacts.
+LedgerStream is a deployed event-driven paper-trading platform that ingests replayed market data, streams quotes, accepts authenticated idempotent paper orders, settles fills through an append-only ledger, calculates portfolio risk, and exposes production-style tests, metrics, logs, and deployment artifacts.
 
-## Target Architecture
+First-screen engineering signals:
 
-The system is organized as a small monorepo with these services:
+- Event-driven Spring Boot backend with Redpanda/Kafka-compatible topics.
+- Real-time market data path from deterministic Python replay to Redis, PostgreSQL, and SSE clients.
+- Idempotent order API using `Idempotency-Key` and `orders(user_id, idempotency_key)`.
+- Append-only portfolio ledger for cash and position mutations.
+- PostgreSQL source of truth, Redis latest quote cache, Redpanda event stream.
+- Backend, frontend, worker, integration, E2E, and k6 load-test coverage.
+- Prometheus metrics, structured request logs, and provisioned Grafana dashboard.
+- Public Vercel + Render deployment backed by Neon, Upstash, and Redpanda Cloud.
 
-- `frontend`: React, TypeScript, and Vite dashboard.
-- `backend`: Java 21 and Spring Boot 3 API, authentication, streaming gateway, and portfolio engine.
-- `market-data-worker`: Python worker for deterministic CSV market replay and normalized tick publishing.
-- `postgres`: relational store for users, symbols, ticks, orders, fills, positions, ledger entries, risk snapshots, and audit events.
-- `redis`: latest quote cache, hot-path state, and future rate limiting.
-- `redpanda`: Kafka-compatible event stream for market and portfolio events.
-- `prometheus` and `grafana`: metrics collection and dashboards.
+## Live Demo
 
-Event flow:
+| Component | Link |
+| --- | --- |
+| Frontend | <https://ledger-stream.vercel.app/> |
+| Backend | <https://ledgerstream-backend-5rk9.onrender.com/> |
+| Backend health | <https://ledgerstream-backend-5rk9.onrender.com/actuator/health> |
 
-```text
-CSV replay or market data source
-  -> Python market-data worker
-  -> Redpanda market.tick topic
-  -> Spring Boot backend consumers
-  -> PostgreSQL, Redis, SSE quote streams, fills, ledger, risk snapshots
-  -> React dashboard
+Demo credentials: no shared public credentials are committed. Use local demo seeding for scripted demos, or register a temporary account once the deployed frontend is rebuilt with the final backend URL and Render CORS allows the Vercel origin.
+
+Demo video: placeholder until a 60-90 second walkthrough is recorded.
+
+Current public deployment notes are tracked in [Deployment](docs/deployment.md) and [Demo Script](docs/demo-script.md). On June 28, 2026, Render health returned `UP`; direct backend auth, symbols, portfolio, positions, and ledger reads worked. Browser API calls still require Vercel `VITE_API_BASE_URL=https://ledgerstream-backend-5rk9.onrender.com` and Render `BACKEND_CORS_ALLOWED_ORIGINS=https://ledger-stream.vercel.app`. Quote and fill demos require a hosted market-data producer publishing `market.tick` events.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  Browser[React dashboard] -->|REST + SSE| Backend[Spring Boot backend]
+  Worker[Python market-data worker] -->|market.tick| Redpanda[(Redpanda)]
+  Redpanda -->|market.tick and order.created| Backend
+  Backend -->|domain events| Redpanda
+  Backend <--> Postgres[(PostgreSQL)]
+  Backend <--> Redis[(Redis)]
+  Prometheus[Prometheus] -->|scrapes /actuator/prometheus| Backend
+  Grafana[Grafana] --> Prometheus
 ```
 
-For the full service topology and schema design, see [Architecture](docs/architecture.md) and [Data Model](docs/data-model.md).
+Detailed system design: [Architecture](docs/architecture.md)
 
-## Live Deployment
+## Core Features
 
-Public deployment links:
+- JWT authentication with refresh-token rotation and logout.
+- Role-based access control with admin-only replay controls.
+- Symbol and quote APIs with Redis hot-cache reads and PostgreSQL fallback.
+- Authenticated SSE quote streaming.
+- Deterministic CSV market replay through a Python worker.
+- Kafka-compatible JSON event contracts for `market.tick`, `order.created`, `order.filled`, `portfolio.updated`, `risk.updated`, and `audit.event`.
+- Idempotent paper-order creation, user-scoped order history, and cancellation for pending orders.
+- Market order simulation with explicit rejection reasons for missing quotes, insufficient cash, insufficient shares, and missing portfolio state.
+- Transactional fill settlement that updates cash, positions, ledger entries, and risk snapshots.
+- Portfolio summary, positions, ledger, latest risk, and risk history APIs.
+- Structured JSON logs, request IDs, Prometheus metrics, and Grafana provisioning.
 
-- Frontend: <https://ledger-stream.vercel.app/>
-- Backend: <https://ledgerstream-backend-5rk9.onrender.com/>
-- Backend health: <https://ledgerstream-backend-5rk9.onrender.com/actuator/health>
+## Tech Stack
 
-The deployed MVP uses Vercel for the frontend, Render for the backend, Neon Postgres, Upstash Redis, and Redpanda Cloud in `us-east-1`. Redpanda Cloud topics are provisioned for `market.tick`, `order.created`, `order.filled`, `portfolio.updated`, `risk.updated`, and `audit.event`. Local Redpanda remains supported through Docker Compose.
+| Layer | Technology |
+| --- | --- |
+| Frontend | React, TypeScript, Vite, TanStack Query, React Router, Recharts, Vitest, Playwright |
+| Backend | Java 21, Spring Boot 3, Spring Security, Spring Data JPA, Spring Kafka, Flyway, Actuator, Micrometer |
+| Worker | Python, Pydantic, `confluent-kafka`, pytest |
+| Data | PostgreSQL, Redis, Redpanda/Kafka-compatible topics |
+| Infra | Docker Compose, Prometheus, Grafana, GitHub Actions, Dependabot, Vercel, Render, Neon, Upstash, Redpanda Cloud |
+| Testing | JUnit 5, Mockito, Testcontainers, React Testing Library, Playwright, k6 |
 
-Secrets are managed only in the provider dashboards: Vercel environment variables, Render environment variables, Neon credentials, Upstash credentials, and Redpanda credentials. Do not commit provider secrets.
+## Data Model Summary
 
-Current public deployment notes:
+LedgerStream models paper trading with explicit accounting boundaries:
 
-- Render `/actuator/health` returned `UP` on June 28, 2026 after the managed service configuration was connected.
-- Vercel must build with `VITE_API_BASE_URL=https://ledgerstream-backend-5rk9.onrender.com`.
-- Render must allow the Vercel origin with `BACKEND_CORS_ALLOWED_ORIGINS=https://ledger-stream.vercel.app`.
-- Quote and automatic fill flows require hosted market-data replay or another producer publishing `market.tick` events to Redpanda Cloud. Without ticks, latest quote and risk endpoints can return `404`, and market orders cannot complete the full fill path.
+- `users` and `refresh_tokens` store authentication state.
+- `symbols` and `price_ticks` store supported instruments and market data history.
+- `portfolios`, `positions`, `orders`, and `fills` store trading state.
+- `ledger_entries` is append-only and records cash and quantity deltas.
+- `risk_snapshots` stores portfolio exposure and P&L snapshots.
+- `audit_events` records security and trading actions with safe metadata.
 
-## Local Development
+Full schema and constraints: [Data Model](docs/data-model.md)
 
-The target local command is:
+## API Docs
+
+API reference: [API](docs/api.md)
+
+Implemented groups:
+
+- Auth: register, login, refresh, logout, current user.
+- Symbols and quotes: symbol catalog, latest quote, history, quote stream.
+- Orders: create, list, get, cancel.
+- Portfolio: summary, positions, ledger.
+- Risk: latest snapshot and history.
+- Admin: replay status/start/stop and queue health.
+- Observability: health and Prometheus metrics.
+
+## Testing Summary
+
+Most recent local verification on June 28, 2026:
+
+| Area | Result |
+| --- | ---: |
+| Backend Maven tests | 126 passed |
+| Frontend Vitest tests | 14 passed |
+| Market-data worker pytest | 15 passed |
+| Frontend production build | Passed with existing Vite chunk-size warning |
+
+Additional coverage:
+
+- Backend unit tests cover fill settlement, average cost, realized P&L, idempotency, rejection paths, risk calculations, access control, and controller behavior.
+- Backend integration tests use Testcontainers for PostgreSQL and Redis when Docker is available.
+- Frontend tests cover auth, dashboard, orders, portfolio, risk, and admin views with mocked APIs.
+- Playwright E2E covers the browser trading flow with mocked APIs by default and can target a seeded local stack.
+- k6 scripts cover order creation and quote API load paths.
+
+## Performance Results
+
+Measured low-load local Docker Compose baseline on June 28, 2026:
+
+| Metric | Result |
+| --- | ---: |
+| Order creation p95 latency | 82.52 ms |
+| Quote API p95 latency | 101.86 ms |
+| Order creation throughput | 0.96 requests/sec |
+| Quote API throughput | 4.84 requests/sec |
+| API error rate under k6 load | 0.00% |
+| Worker replay | 25 ticks consumed, 0 failed |
+
+These are local baseline measurements, not production capacity claims. Details and commands: [Performance](docs/performance.md)
+
+## Observability
+
+The backend exposes `/actuator/health` and `/actuator/prometheus`. Custom metrics include market tick consumption/failures, order created/filled/rejected counts, quote stream clients/events/failures, quote cache hits/misses, and portfolio calculation latency.
+
+Grafana provisioning lives under `infra/grafana/provisioning` and includes the `LedgerStream Overview` dashboard. Screenshot placeholder: `docs/assets/observability/grafana-ledgerstream-overview.png`.
+
+Observability guide: [Observability](docs/observability.md)
+
+## Deployment Architecture
+
+| Layer | Provider |
+| --- | --- |
+| Frontend | Vercel |
+| Backend | Render Docker Web Service |
+| PostgreSQL | Neon |
+| Redis | Upstash Redis |
+| Event stream | Redpanda Cloud |
+
+Local development keeps the same service boundaries through Docker Compose with PostgreSQL, Redis, Redpanda, Prometheus, Grafana, backend, frontend, and an optional worker profile.
+
+Deployment guide: [Deployment](docs/deployment.md)
+
+## Security Considerations
+
+- Paper trading only; there is no real brokerage order-placement path.
+- BCrypt password hashing.
+- JWT access tokens and opaque refresh tokens hashed at rest.
+- Refresh-token rotation and logout revocation.
+- User-scoped repository queries for orders, portfolio, positions, ledger, and risk.
+- Admin endpoints require `ADMIN`.
+- CORS is environment-driven and must use exact frontend origins.
+- Request logs omit bodies, query strings, authorization headers, cookies, passwords, access tokens, refresh tokens, API keys, and raw client IPs.
+- Dependabot and Dependency Review cover Maven, npm, and Python dependency changes.
+
+Security details: [Security](docs/security.md)
+
+## Tradeoffs And Limitations
+
+- Public browser trading still depends on final Vercel API-base rebuild and Render CORS alignment.
+- Hosted quote/order-fill demos require a running market-data producer for Redpanda Cloud.
+- Kafka publishes are not backed by an outbox table yet.
+- SSE subscription state is in memory; multi-instance deployment needs sticky routing or shared fanout.
+- Rate limits are in-memory per backend instance; Redis-backed distributed limits are future work.
+- Limit orders can be accepted as pending, but matching is future work.
+- Refresh tokens are stored in browser `sessionStorage` for the MVP; HttpOnly cookies are the preferred production improvement.
+- Grafana screenshots and a 60-90 second demo video are placeholders until captured.
+
+## Local Setup
+
+Start the full local stack:
 
 ```bash
 docker compose up --build
 ```
 
-This starts the local backend, frontend, PostgreSQL, Redis, Redpanda, Prometheus, and Grafana services. The market-data worker is available through the `worker` Compose profile.
+Start the optional market-data worker:
 
-### Backend
+```bash
+docker compose --profile worker up --build market-data-worker
+```
 
-The backend is a Java 21 Spring Boot 3 service with a Maven wrapper.
+Run backend tests:
 
 ```bash
 cd backend
 ./mvnw test
-./mvnw spring-boot:run -Dspring-boot.run.profiles=local
 ```
 
-The initial public smoke endpoints are:
-
-- `GET /api/ping`
-- `GET /actuator/health`
-
-The backend echoes or generates `X-Request-ID` for request tracing and uses the same ID in standard API error responses. In the local profile, backend console logs use structured JSON and include request completion fields plus safe order/event context such as `userId`, `orderId`, `symbol`, and `eventType`.
-
-Latest quote cache entries are stored in Redis under keys like `latest_quote:AAPL`; the cached JSON payload includes quote timestamp metadata so callers can detect stale prices before falling back to PostgreSQL.
-
-Backend event publishing is configured for Redpanda/Kafka-compatible topics including `market.tick`, `order.created`, `order.filled`, `portfolio.updated`, `risk.updated`, and `audit.event`.
-
-The backend consumes `market.tick` events, persists historical ticks to PostgreSQL, and refreshes Redis latest quote cache entries. Duplicate ticks with the same symbol, timestamp, and source are skipped for historical storage but still update the hot cache.
-
-Market order execution consumes `order.created`, creates fills, settles portfolio cash and positions, and appends immutable ledger entries in one transaction. BUY fills record negative cash and positive quantity deltas; SELL fills record positive cash and negative quantity deltas.
-
-Operational metrics are exposed at `GET /actuator/prometheus`. Custom metrics cover market tick ingestion, order creation/fill/rejection counts, active quote stream clients, quote cache hits and misses, and portfolio valuation latency.
-
-Grafana is provisioned with the `LedgerStream Overview` dashboard and a default Prometheus datasource. Start it with:
+Run frontend checks:
 
 ```bash
-docker compose up -d prometheus grafana backend
+cd frontend
+npm install
+npm run test:ci
+npm run build
 ```
 
-Open `http://localhost:3000` and use the Compose Grafana credentials: `admin` / `ledgerstream-local`.
-
-Backend unit tests cover the core financial invariants: fill settlement, average cost, realized P&L, rejection paths, idempotency, and risk concentration.
-
-Backend integration tests use Testcontainers for PostgreSQL and Redis. They verify registration, quote seeding, idempotent order creation, market fill settlement, positions, ledger entries, portfolio/risk views, and user data isolation. If Docker is not running, those tests are skipped by Testcontainers instead of failing the suite.
-
-Implemented auth endpoints:
-
-- `POST /api/auth/register`
-- `POST /api/auth/login`
-- `POST /api/auth/refresh`
-- `POST /api/auth/logout`
-- `GET /api/me`
-
-Implemented symbol and quote endpoints:
-
-- `GET /api/symbols`
-- `GET /api/symbols/{ticker}`
-- `GET /api/symbols/{ticker}/quote`
-- `GET /api/symbols/{ticker}/history?range=1d&limit=500`
-- `GET /api/stream/quotes?symbols=AAPL,MSFT`
-
-Implemented order endpoints:
-
-- `POST /api/orders`
-- `GET /api/orders`
-- `GET /api/orders/{id}`
-- `POST /api/orders/{id}/cancel`
-
-Implemented portfolio endpoints:
-
-- `GET /api/portfolio`
-- `GET /api/portfolio/positions`
-- `GET /api/portfolio/ledger?page=0&size=10`
-
-Implemented risk endpoints:
-
-- `GET /api/portfolio/risk`
-- `GET /api/portfolio/risk/history?page=0&size=50`
-
-Implemented admin endpoints:
-
-- `GET /api/admin/market/replay/status`
-- `POST /api/admin/market/replay/start`
-- `POST /api/admin/market/replay/stop`
-- `GET /api/admin/queue-health`
-
-Replay controls are authenticated admin-only backend state controls for the local demo. They record audit events and expose the intended replay state, while the Python worker is still started through the Compose worker profile.
-
-### Market Data Worker
-
-The market-data worker validates deterministic CSV replay fixtures and can publish normalized `market.tick` events to Redpanda.
+Run worker tests and dry-run replay:
 
 ```bash
 cd workers/market-data
@@ -155,121 +221,17 @@ PYTHONPATH=src pytest
 PYTHONPATH=src python -m ledgerstream_market_data replay --file data/sample_ticks.csv --dry-run
 ```
 
-The included sample fixture has 25 deterministic ticks across `AAPL`, `MSFT`, `NVDA`, `TSLA`, and `SPY`. Worker tests cover CSV parsing, invalid row handling, event serialization, dry-run output, publish calls, and replay timing without real sleeps.
+Local demo seed is disabled by default. Enable it only for local or demo environments with `DEMO_SEED_ENABLED=true` and provider/local environment variables for demo credentials.
 
-The Compose service is behind the `worker` profile and publishes to Redpanda when enabled:
+## Future Work
 
-```bash
-docker compose --profile worker up --build market-data-worker
-```
-
-### Frontend
-
-The frontend is a React, TypeScript, and Vite app under `frontend/`.
-
-```bash
-cd frontend
-npm install
-npm run build
-npm test -- --run
-npm run test:ci
-npm run e2e
-npm run dev
-```
-
-Set `VITE_API_BASE_URL` for local development or `FRONTEND_API_BASE_URL` when building through Docker Compose. The app shell includes routes for dashboard, login/register, portfolio, orders, risk, and admin replay controls. The Admin nav item is shown only for authenticated users with the `ADMIN` role.
-
-Frontend tests cover login form validation, quote dashboard rendering and stream states, order ticket validation and idempotency headers, portfolio summary and ledger tables, risk summary/history rendering, and admin replay controls.
-
-Frontend authentication is wired to the backend register, login, refresh, logout, and `/api/me` endpoints. Tokens are stored in browser `sessionStorage` for the MVP; see [Security](docs/security.md) for the tradeoff.
-
-The dashboard fetches supported symbols and latest quotes, opens the authenticated quote stream, and charts the selected symbol's intraday history with Recharts.
-
-The portfolio route renders cash, total equity, realized and unrealized P&L, open positions, and paginated append-only ledger entries from the backend portfolio APIs.
-
-The orders route includes a market order ticket with per-submission idempotency keys, double-submit protection, order status feedback, cancellation for pending orders, and a user-scoped order history table.
-
-The risk route renders latest total equity, cash, gross exposure, concentration, unrealized P&L, and a historical risk chart from the backend risk snapshot APIs.
-
-### End-to-End Tests
-
-Playwright E2E tests live under `frontend/e2e/`. The default `npm run e2e` path starts the Vite dev server and uses mocked backend responses, which makes the browser flow CI-friendly without Docker.
-
-Install the Chromium browser once per machine or CI image:
-
-```bash
-cd frontend
-npm run e2e:install
-```
-
-To run the same browser flow against a seeded local stack, start Compose with demo data and disable API mocks:
-
-```bash
-DEMO_SEED_ENABLED=true DEMO_USER_PASSWORD=Password123! docker compose --profile worker up --build -d
-cd frontend
-E2E_MOCK_API=false E2E_DEMO_EMAIL=demo@example.com E2E_DEMO_PASSWORD=Password123! npx playwright test
-cd ..
-docker compose down
-```
-
-### Load Tests
-
-k6 scripts live under `load-tests/k6/` for order creation and quote API load testing. They are parameterized with `BASE_URL`, `AUTH_TOKEN`, or `LOAD_TEST_EMAIL` and `LOAD_TEST_PASSWORD`.
-
-```bash
-k6 run load-tests/k6/order-create.js
-k6 run load-tests/k6/quote-api.js
-```
-
-Install k6 before running these scripts. A local baseline measured on June 28, 2026 produced:
-
-| Metric | Result |
-| --- | ---: |
-| Order creation p95 latency | 82.52 ms |
-| Quote API p95 latency | 101.86 ms |
-| Order creation throughput | 0.96 requests/sec |
-| Quote API throughput | 4.84 requests/sec |
-| k6 API error rate | 0.00% |
-| Worker replay | 25 ticks consumed, 0 failed |
-
-These are low-load local Docker Compose results, not production capacity claims. See [Performance](docs/performance.md) for the environment, commands, and limitations.
-
-### Demo Data
-
-Supported symbols are seeded by Flyway: `AAPL`, `MSFT`, `NVDA`, `TSLA`, and `SPY`.
-
-Demo account seeding is disabled by default. For local development only, set `DEMO_SEED_ENABLED=true` and provide `DEMO_USER_EMAIL`, `DEMO_USER_PASSWORD`, and `DEMO_USER_INITIAL_CASH`. To seed a local admin for replay controls, also set `DEMO_ADMIN_SEED_ENABLED=true` with `DEMO_ADMIN_EMAIL` and `DEMO_ADMIN_PASSWORD`.
-
-### Local Service Ports
-
-| Service | Port | Notes |
-| --- | --- | --- |
-| PostgreSQL | `5432` | Database for core platform state. |
-| Redis | `6379` | Hot quote cache and future rate-limiting state. |
-| Redpanda broker | `19092` | Kafka-compatible external listener for local tools. |
-| Redpanda admin | `9644` | Admin and health interface. |
-| Prometheus | `9090` | Metrics UI and scrape storage. |
-| Grafana | `3000` | Dashboard UI; local default user is `admin`. |
-| Backend | `8080` | Planned Spring Boot API port. |
-| Frontend | `5173` | Vite dev server locally, or Compose-served static dashboard. |
-
-## Documentation
-
-- [Architecture](docs/architecture.md)
-- [API](docs/api.md)
-- [Data Model](docs/data-model.md)
-- [Deployment](docs/deployment.md)
-- [Security](docs/security.md)
-- [Observability](docs/observability.md)
-- [Performance](docs/performance.md)
-- [Demo Script](docs/demo-script.md)
-
-The documented deployment path is Vercel for the frontend, Render for the backend, Neon for PostgreSQL, Upstash Redis, and Redpanda Cloud for Kafka-compatible events. See [Deployment](docs/deployment.md) for provider settings, verification commands, and current limitations.
-
-## Security Checks
-
-Dependabot monitors backend Maven, frontend npm, and market-data worker Python dependencies. Pull requests also run Dependency Review and fail when dependency changes introduce high-severity vulnerable packages.
-
-## Measurement Policy
-
-Latency, throughput, cache-hit rate, coverage, and other performance claims must be measured before they are documented. Performance results in this README are local baselines and should not be reused as production capacity claims.
+- Deploy or schedule a hosted market-data worker for Redpanda Cloud.
+- Add broker-backed end-to-end event-flow tests.
+- Add an outbox or transactional messaging layer.
+- Add dead-letter topics and retry handling.
+- Add limit-order matching.
+- Add historical portfolio snapshots.
+- Add a simple backtesting service.
+- Add archive export paths.
+- Move refresh tokens to `Secure`, `HttpOnly`, `SameSite` cookies.
+- Capture Grafana screenshots and a short demo video.
