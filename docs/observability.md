@@ -34,6 +34,26 @@ Spring Boot Actuator exposes `/actuator/health`. With Redis auto-configuration e
 
 The Compose Redis service also has a container health check based on `redis-cli ping`.
 
+## Grafana
+
+Grafana is provisioned from files under `infra/grafana/provisioning`:
+
+- `datasources/prometheus.yml` registers the Compose Prometheus service as the default Grafana datasource.
+- `dashboards/ledgerstream.yml` registers the dashboard provider.
+- `dashboards/ledgerstream-overview.json` defines the `LedgerStream Overview` dashboard.
+
+The overview dashboard includes panels for API request rate, API latency, API error rate, market ticks/sec, order created/filled/rejected counts, active stream clients, quote cache hit/miss behavior, portfolio calculation latency, JVM heap usage, and process CPU.
+
+Run the local observability stack with:
+
+```bash
+docker compose up -d prometheus grafana backend
+```
+
+Then open Grafana at `http://localhost:3000`, sign in with the local credentials from Compose, and open `Dashboards > LedgerStream > LedgerStream Overview`.
+
+Screenshot placeholder path: `docs/assets/observability/grafana-ledgerstream-overview.png`.
+
 ## Backend Logs
 
 Backend logs use Spring Boot structured JSON logging in the local profile through `logging.structured.format.console=logstash`. Request IDs are stored in MDC as `requestId` and echoed in the `X-Request-ID` header.
@@ -95,7 +115,4 @@ Example order lifecycle log:
 
 ## TODO
 
-- Add Prometheus scrape configuration.
-- Add Grafana datasource provisioning.
-- Add dashboard JSON.
 - Add troubleshooting playbooks for failed orders, stream disconnects, and event ingestion failures.

@@ -64,6 +64,14 @@ Market order execution consumes `order.created`, creates fills, settles portfoli
 
 Operational metrics are exposed at `GET /actuator/prometheus`. Custom metrics cover market tick ingestion, order creation/fill/rejection counts, active quote stream clients, quote cache hits and misses, and portfolio valuation latency.
 
+Grafana is provisioned with the `LedgerStream Overview` dashboard and a default Prometheus datasource. Start it with:
+
+```bash
+docker compose up -d prometheus grafana backend
+```
+
+Open `http://localhost:3000` and use the Compose Grafana credentials: `admin` / `ledgerstream-local`.
+
 Implemented auth endpoints:
 
 - `POST /api/auth/register`
