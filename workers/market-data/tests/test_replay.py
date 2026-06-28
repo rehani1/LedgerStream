@@ -66,3 +66,43 @@ def test_replay_market_ticks_publishes_to_kafka(monkeypatch, tmp_path: Path) -> 
 	assert publish_calls[0][1] == "AAPL"
 	assert '"last":187.150000' in publish_calls[0][2]
 	assert flush_calls == [4]
+
+
+def test_replay_market_ticks_uses_scaled_delays_without_sleeping(monkeypatch, tmp_path: Path) -> None:
+	csv_file = tmp_path / "ticks.csv"
+	csv_file.write_text(
+		"timestamp,symbol,bid,ask,last,volume,source\n"
+		"2026-01-02T14:30:00Z,AAPL,187.120000,187.180000,187.150000,125000,fixture\n"
+		"2026-01-02T14:30:04Z,AAPL,187.260000,187.340000,187.300000,132500,fixture\n",
+		encoding="utf-8",
+	)
+	publish_calls = []
+	sleep_calls = []
+
+	class FakePublisher:
+		def __init__(self, bootstrap_servers: str) -> None:
+			self.bootstrap_servers = bootstrap_servers
+
+		def publish(self, topic: str, key: str, payload: str) -> None:
+			publish_calls.append((topic, key, payload))
+
+		def flush(self, timeout_seconds: float) -> None:
+			pass
+
+	def fake_sleep(delay_seconds: float) -> None:
+		sleep_calls.append(delay_seconds)
+
+	monkeypatch.setattr("ledgerstream_market_data.replay.KafkaMarketTickPublisher", FakePublisher)
+
+	count = replay_market_ticks(
+		csv_file,
+		topic="market.tick",
+		bootstrap_servers="redpanda:9092",
+		speed=2.0,
+		dry_run=False,
+		sleeper=fake_sleep,
+	)
+
+	assert count == 2
+	assert sleep_calls == [2.0]
+	assert [call[1] for call in publish_calls] == ["AAPL", "AAPL"]

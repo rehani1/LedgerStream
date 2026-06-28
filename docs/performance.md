@@ -36,6 +36,10 @@ Backend integration tests use Testcontainers with PostgreSQL and Redis to exerci
 
 The integration test class is marked with Testcontainers' Docker-disabled skip behavior so local and CI runs without a Docker daemon do not fail the whole suite. In that case, Maven reports the integration tests as skipped. Redpanda/Kafka publishing is mocked in this integration layer because the current backend flow can be verified deterministically by invoking the execution service directly after order creation; a broker-backed event-flow test remains a later expansion.
 
+## Worker Test Strategy
+
+Market-data worker tests validate deterministic CSV parsing, invalid row handling, event serialization, dry-run replay output, publisher calls, and replay timing calculations with an injected sleeper. These tests do not produce throughput or latency claims; replay throughput remains a planned measurement once the full local stack can be run.
+
 ## TODO
 
 - Add k6 scripts.

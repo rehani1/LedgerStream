@@ -128,11 +128,11 @@ cd workers/market-data
 python3 -m venv .venv
 . .venv/bin/activate
 pip install -r requirements.txt
-pytest
+PYTHONPATH=src pytest
 PYTHONPATH=src python -m ledgerstream_market_data replay --file data/sample_ticks.csv --dry-run
 ```
 
-The included sample fixture has 25 deterministic ticks across `AAPL`, `MSFT`, `NVDA`, `TSLA`, and `SPY`.
+The included sample fixture has 25 deterministic ticks across `AAPL`, `MSFT`, `NVDA`, `TSLA`, and `SPY`. Worker tests cover CSV parsing, invalid row handling, event serialization, dry-run output, publish calls, and replay timing without real sleeps.
 
 The Compose service is behind the `worker` profile and publishes to Redpanda when enabled:
 
