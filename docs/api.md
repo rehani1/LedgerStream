@@ -28,8 +28,9 @@ The API surface below is the target contract. Endpoints will be marked as implem
 | Portfolio | `GET` | `/api/portfolio/ledger?page=0&size=50` | User | Implemented. Paginated append-only ledger entries. |
 | Risk | `GET` | `/api/portfolio/risk` | User | Implemented. Latest risk snapshot. |
 | Risk | `GET` | `/api/portfolio/risk/history?page=0&size=50` | User | Implemented. Historical risk snapshots. |
-| Admin | `POST` | `/api/admin/market/replay/start` | Admin | Start deterministic replay control. |
-| Admin | `POST` | `/api/admin/market/replay/stop` | Admin | Stop deterministic replay control. |
+| Admin | `GET` | `/api/admin/market/replay/status` | Admin | Implemented. Return backend replay-control state. |
+| Admin | `POST` | `/api/admin/market/replay/start` | Admin | Implemented. Mark deterministic replay state as running and record an audit event. |
+| Admin | `POST` | `/api/admin/market/replay/stop` | Admin | Implemented. Mark deterministic replay state as stopped and record an audit event. |
 | Admin | `GET` | `/api/admin/queue-health` | Admin | Implemented. Returns current queue-health integration status. |
 | Observability | `GET` | `/actuator/health` | Public or internal | Health checks. |
 | Observability | `GET` | `/actuator/prometheus` | Internal | Prometheus metrics. |
@@ -350,6 +351,23 @@ If a latest quote is unavailable, risk valuation falls back to average cost and 
   "totalPages": 1
 }
 ```
+
+## Admin
+
+Admin endpoints require an access token for a user with the `ADMIN` role.
+
+`GET /api/admin/market/replay/status`, `POST /api/admin/market/replay/start`, and `POST /api/admin/market/replay/stop` return the same response shape:
+
+```json
+{
+  "status": "RUNNING",
+  "mode": "backend_state",
+  "message": "Replay state is running. The local market-data worker publishes ticks from the configured fixture.",
+  "updatedAt": "2026-01-01T00:00:00Z"
+}
+```
+
+The current MVP uses `mode: "backend_state"`. These endpoints do not spawn or kill a worker process; they expose the admin-controlled replay state for local demos and record `MARKET_REPLAY_STARTED` or `MARKET_REPLAY_STOPPED` audit events. Start the worker with the Compose worker profile to publish ticks.
 
 `GET /api/admin/queue-health` currently returns the configured event-topic contract. It does not claim live broker connectivity yet:
 

@@ -15,6 +15,9 @@ public record DemoSeedProperties(
 	boolean enabled,
 	@NotBlank @Email String email,
 	@NotBlank String password,
-	@NotNull @DecimalMin("0.00") BigDecimal initialCash
+	@NotNull @DecimalMin("0.00") BigDecimal initialCash,
+	boolean adminEnabled,
+	@NotBlank @Email String adminEmail,
+	@NotBlank String adminPassword
 ) {
 }

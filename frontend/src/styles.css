@@ -284,6 +284,13 @@ h2 {
   align-items: start;
 }
 
+.admin-control-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.44fr) minmax(0, 0.56fr);
+  gap: 16px;
+  align-items: start;
+}
+
 .chart-panel {
   border: 1px solid #dce2da;
   border-radius: 8px;
@@ -588,6 +595,29 @@ th {
   font-size: 1rem;
 }
 
+.control-panel {
+  overflow: visible;
+}
+
+.control-body {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.control-message {
+  margin-bottom: 0;
+  color: #4f5c53;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.control-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .order-status {
   display: inline-flex;
   align-items: center;
@@ -657,6 +687,7 @@ th {
 
   .dashboard-heading,
   .dashboard-grid,
+  .admin-control-grid,
   .risk-dashboard-grid,
   .order-workspace {
     grid-template-columns: 1fr;

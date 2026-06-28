@@ -82,3 +82,6 @@ ledgerstream:
     email: ${DEMO_USER_EMAIL:demo@example.com}
     password: ${DEMO_USER_PASSWORD:replace-with-local-demo-password}
     initial-cash: ${DEMO_USER_INITIAL_CASH:100000.00}
+    admin-enabled: ${DEMO_ADMIN_SEED_ENABLED:false}
+    admin-email: ${DEMO_ADMIN_EMAIL:admin@example.com}
+    admin-password: ${DEMO_ADMIN_PASSWORD:replace-with-local-demo-admin-password}

@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './auth/AuthContext';
 import { RequireAuth } from './auth/RequireAuth';
 import { AppLayout } from './layout/AppLayout';
+import { AdminPage } from './pages/AdminPage';
 import { AuthPage } from './pages/AuthPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { OrdersPage } from './pages/OrdersPage';
@@ -34,6 +35,7 @@ export function AppRoutes() {
               <Route path="portfolio" element={<PortfolioPage />} />
               <Route path="orders" element={<OrdersPage />} />
               <Route path="risk" element={<RiskPage />} />
+              <Route path="admin" element={<AdminPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Route>

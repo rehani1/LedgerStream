@@ -1,7 +1,9 @@
 package com.ledgerstream.seed;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.groups.Tuple.tuple;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -40,7 +42,10 @@ class DemoDataSeederTest {
 			true,
 			"Demo@Example.com",
 			"Password123!",
-			new BigDecimal("100000.00")
+			new BigDecimal("100000.00"),
+			false,
+			"admin@example.com",
+			"AdminPassword123!"
 		);
 		when(userRepository.findByEmail("demo@example.com")).thenReturn(Optional.empty());
 		when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
@@ -67,5 +72,43 @@ class DemoDataSeederTest {
 		assertThat(portfolio.getUser()).isSameAs(user);
 		assertThat(portfolio.getCashBalance()).isEqualByComparingTo("100000.00");
 		assertThat(portfolio.getBaseCurrency()).isEqualTo("USD");
+	}
+
+	@Test
+	void createsDemoAdminWhenEnabled() {
+		DemoSeedProperties properties = new DemoSeedProperties(
+			true,
+			"demo@example.com",
+			"Password123!",
+			new BigDecimal("100000.00"),
+			true,
+			"Admin@Example.com",
+			"AdminPassword123!"
+		);
+		when(userRepository.findByEmail("demo@example.com")).thenReturn(Optional.empty());
+		when(userRepository.findByEmail("admin@example.com")).thenReturn(Optional.empty());
+		when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+			User user = invocation.getArgument(0);
+			user.setId(UUID.randomUUID());
+			return user;
+		});
+		when(portfolioRepository.findByUserId(any(UUID.class))).thenReturn(Optional.empty());
+		when(portfolioRepository.save(any(Portfolio.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+		DemoDataSeeder seeder = new DemoDataSeeder(properties, userRepository, portfolioRepository, passwordEncoder);
+		seeder.run(null);
+
+		ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
+		verify(userRepository, times(2)).save(userCaptor.capture());
+
+		assertThat(userCaptor.getAllValues())
+			.extracting(User::getEmail, User::getRole)
+			.contains(
+				tuple("demo@example.com", UserRole.USER),
+				tuple("admin@example.com", UserRole.ADMIN)
+			);
+		assertThat(userCaptor.getAllValues())
+			.filteredOn(user -> user.getRole() == UserRole.ADMIN)
+			.allMatch(user -> passwordEncoder.matches("AdminPassword123!", user.getPasswordHash()));
 	}
 }

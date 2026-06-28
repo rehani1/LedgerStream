@@ -15,7 +15,7 @@ LedgerStream is a paper-trading system only. It must not place real brokerage or
 - Restricted CORS based on configured frontend origin.
 - Input validation for all public request bodies.
 - Rate limiting for authentication and order creation.
-- Audit events for security and financial actions.
+- Audit events for security, financial, and admin replay-control actions.
 - Sanitized structured logs with request IDs.
 
 ## Demo Credentials
@@ -39,6 +39,7 @@ Demo account seeding is disabled by default and only available under `local` or 
 - `/api/admin/**` requires `ADMIN`; normal users receive `403`.
 - Ownership helpers verify order, portfolio, position, ledger, and risk snapshot access through user-scoped repository checks.
 - Missing or cross-user financial resources are reported as `404` to avoid leaking another user's resource existence.
+- Admin replay start and stop controls record audit events and do not accept user-controlled worker commands or shell arguments.
 
 ## Token Storage Tradeoff
 

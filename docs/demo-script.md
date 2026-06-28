@@ -26,7 +26,7 @@ Show the full paper-trading path in 60 to 90 seconds once the MVP is implemented
 
 ## Local Demo Data
 
-Set `DEMO_SEED_ENABLED=true` in a local `.env` file to create the configured demo account and initial cash balance. Supported symbols are available after Flyway migrations run.
+Set `DEMO_SEED_ENABLED=true` in a local `.env` file to create the configured demo account and initial cash balance. Set `DEMO_ADMIN_SEED_ENABLED=true` with separate admin credentials when the demo needs the admin replay controls. Supported symbols are available after Flyway migrations run.
 
 Deterministic market-data fixtures are available at `workers/market-data/data/sample_ticks.csv`. The worker can validate the fixture locally with:
 
@@ -35,7 +35,7 @@ cd workers/market-data
 PYTHONPATH=src python -m ledgerstream_market_data replay --file data/sample_ticks.csv --dry-run
 ```
 
-To publish those ticks to Redpanda locally, run:
+Admin users can open the Admin route and use Start Replay or Stop Replay to set backend replay state. The current MVP records that control action and shows queue-topic health; it does not launch the Python process. To publish ticks to Redpanda locally, run:
 
 ```bash
 docker compose --profile worker up --build market-data-worker

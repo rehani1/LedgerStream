@@ -45,17 +45,35 @@ public class DemoDataSeeder implements ApplicationRunner {
 	@Override
 	@Transactional
 	public void run(ApplicationArguments args) {
-		String email = normalizeEmail(properties.email());
-		User user = userRepository.findByEmail(email).orElseGet(() -> createDemoUser(email));
-		portfolioRepository.findByUserId(user.getId()).orElseGet(() -> createDemoPortfolio(user));
+		seedUser(properties.email(), properties.password(), UserRole.USER);
+		if (properties.adminEnabled()) {
+			seedUser(properties.adminEmail(), properties.adminPassword(), UserRole.ADMIN);
+		}
 		log.info("Demo seed data verified for local profile");
 	}
 
-	private User createDemoUser(String email) {
+	private User seedUser(String email, String password, UserRole role) {
+		String normalizedEmail = normalizeEmail(email);
+		User user = userRepository.findByEmail(normalizedEmail)
+			.map(existingUser -> ensureRole(existingUser, role))
+			.orElseGet(() -> createDemoUser(normalizedEmail, password, role));
+		portfolioRepository.findByUserId(user.getId()).orElseGet(() -> createDemoPortfolio(user));
+		return user;
+	}
+
+	private User createDemoUser(String email, String password, UserRole role) {
 		User user = new User();
 		user.setEmail(email);
-		user.setPasswordHash(passwordEncoder.encode(properties.password()));
-		user.setRole(UserRole.USER);
+		user.setPasswordHash(passwordEncoder.encode(password));
+		user.setRole(role);
+		return userRepository.save(user);
+	}
+
+	private User ensureRole(User user, UserRole role) {
+		if (user.getRole() == role) {
+			return user;
+		}
+		user.setRole(role);
 		return userRepository.save(user);
 	}
 

@@ -8,7 +8,7 @@ LedgerStream is planned as an event-driven paper-trading system. Market data ent
 
 | Service | Responsibility |
 | --- | --- |
-| `frontend` | Authenticated dashboard, quote stream display, order ticket, portfolio, ledger, and risk views. |
+| `frontend` | Authenticated dashboard, quote stream display, order ticket, portfolio, ledger, risk, and admin replay-control views. |
 | `backend` | REST API, authentication, authorization, streaming gateway, order processing, ledger writes, risk calculations, metrics, and logs. |
 | `market-data-worker` | Deterministic CSV replay and normalized `market.tick` event publishing. |
 | `postgres` | Durable relational state for accounts, symbols, orders, fills, positions, ledger entries, risk snapshots, and audit events. |
@@ -86,6 +86,10 @@ PYTHONPATH=src python -m ledgerstream_market_data replay --file data/sample_tick
 ```
 
 The worker validates replay configuration and deterministic CSV fixtures. `data/sample_ticks.csv` contains 25 ticks across `AAPL`, `MSFT`, `NVDA`, `TSLA`, and `SPY`, with bid, ask, last, volume, timestamp, and source fields. Each replayed row becomes a normalized `market.tick` JSON event with a deterministic UUIDv5 `eventId`. `--dry-run` prints events without Kafka; the Compose worker profile publishes to Redpanda.
+
+## Admin Replay Controls
+
+Admin replay controls are exposed through `/api/admin/market/replay/status`, `/api/admin/market/replay/start`, and `/api/admin/market/replay/stop`. The current control mode is `backend_state`: the backend stores the requested replay state in memory, records admin audit events, and returns clear status for the dashboard. It does not directly start or stop the Python worker yet. Local demos still run the worker through the Compose `worker` profile, and a future worker polling or control-topic flow can replace the state-only mode.
 
 ## TODO
 

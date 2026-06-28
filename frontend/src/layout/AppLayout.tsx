@@ -1,4 +1,13 @@
-import { Activity, BarChart3, BriefcaseBusiness, CircleUserRound, LayoutDashboard, LogOut, ReceiptText } from 'lucide-react';
+import {
+  Activity,
+  BarChart3,
+  BriefcaseBusiness,
+  CircleUserRound,
+  LayoutDashboard,
+  LogOut,
+  ReceiptText,
+  ShieldCheck
+} from 'lucide-react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../auth/AuthContext';
@@ -7,12 +16,14 @@ const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/portfolio', label: 'Portfolio', icon: BriefcaseBusiness },
   { to: '/orders', label: 'Orders', icon: ReceiptText },
-  { to: '/risk', label: 'Risk', icon: BarChart3 }
+  { to: '/risk', label: 'Risk', icon: BarChart3 },
+  { to: '/admin', label: 'Admin', icon: ShieldCheck, adminOnly: true }
 ];
 
 export function AppLayout() {
   const auth = useAuth();
   const navigate = useNavigate();
+  const visibleNavItems = navItems.filter((item) => !item.adminOnly || auth.user?.role === 'ADMIN');
 
   async function handleLogout() {
     await auth.logout();
@@ -27,7 +38,7 @@ export function AppLayout() {
           <span>LedgerStream</span>
         </NavLink>
         <nav className="primary-nav" aria-label="Primary">
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const Icon = item.icon;
 
             return (

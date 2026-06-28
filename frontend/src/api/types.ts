@@ -147,3 +147,16 @@ export type RiskHistoryResponse = {
   totalElements: number;
   totalPages: number;
 };
+
+export type ReplayControlResponse = {
+  status: 'RUNNING' | 'STOPPED';
+  mode: string;
+  message: string;
+  updatedAt: string;
+};
+
+export type QueueHealthResponse = {
+  status: string;
+  checkedAt: string;
+  topics: Record<string, string>;
+};

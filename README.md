@@ -96,6 +96,15 @@ Implemented risk endpoints:
 - `GET /api/portfolio/risk`
 - `GET /api/portfolio/risk/history?page=0&size=50`
 
+Implemented admin endpoints:
+
+- `GET /api/admin/market/replay/status`
+- `POST /api/admin/market/replay/start`
+- `POST /api/admin/market/replay/stop`
+- `GET /api/admin/queue-health`
+
+Replay controls are authenticated admin-only backend state controls for the local demo. They record audit events and expose the intended replay state, while the Python worker is still started through the Compose worker profile.
+
 ### Market Data Worker
 
 The market-data worker validates deterministic CSV replay fixtures and can publish normalized `market.tick` events to Redpanda.
@@ -129,7 +138,7 @@ npm test -- --run
 npm run dev
 ```
 
-Set `VITE_API_BASE_URL` for local development or `FRONTEND_API_BASE_URL` when building through Docker Compose. The initial app shell includes routes for dashboard, login/register, portfolio, orders, and risk.
+Set `VITE_API_BASE_URL` for local development or `FRONTEND_API_BASE_URL` when building through Docker Compose. The app shell includes routes for dashboard, login/register, portfolio, orders, risk, and admin replay controls. The Admin nav item is shown only for authenticated users with the `ADMIN` role.
 
 Frontend authentication is wired to the backend register, login, refresh, logout, and `/api/me` endpoints. Tokens are stored in browser `sessionStorage` for the MVP; see [Security](docs/security.md) for the tradeoff.
 
@@ -145,7 +154,7 @@ The risk route renders latest total equity, cash, gross exposure, concentration,
 
 Supported symbols are seeded by Flyway: `AAPL`, `MSFT`, `NVDA`, `TSLA`, and `SPY`.
 
-Demo account seeding is disabled by default. For local development only, set `DEMO_SEED_ENABLED=true` and provide `DEMO_USER_EMAIL`, `DEMO_USER_PASSWORD`, and `DEMO_USER_INITIAL_CASH`.
+Demo account seeding is disabled by default. For local development only, set `DEMO_SEED_ENABLED=true` and provide `DEMO_USER_EMAIL`, `DEMO_USER_PASSWORD`, and `DEMO_USER_INITIAL_CASH`. To seed a local admin for replay controls, also set `DEMO_ADMIN_SEED_ENABLED=true` with `DEMO_ADMIN_EMAIL` and `DEMO_ADMIN_PASSWORD`.
 
 ### Local Service Ports
 
