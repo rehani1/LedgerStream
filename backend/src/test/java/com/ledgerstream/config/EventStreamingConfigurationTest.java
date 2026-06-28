@@ -1,13 +1,16 @@
 package com.ledgerstream.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
+import java.time.Duration;
 import java.util.Map;
 
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.ledgerstream.config.properties.KafkaProperties;
 import com.ledgerstream.events.MarketTickEvent;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.kafka.core.ConsumerFactory;
@@ -39,7 +42,11 @@ class EventStreamingConfigurationTest {
 		assertThat(config).containsEntry(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:19092");
 		assertThat(config).containsEntry(ProducerConfig.ACKS_CONFIG, "all");
 		assertThat(config).containsEntry(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
-		assertThat(config).containsEntry(JsonSerializer.ADD_TYPE_INFO_HEADERS, false);
+		assertThat(config).doesNotContainKey(JsonSerializer.ADD_TYPE_INFO_HEADERS);
+		assertThatCode(() -> {
+			Producer<String, Object> producer = producerFactory.createProducer();
+			producer.close(Duration.ZERO);
+		}).doesNotThrowAnyException();
 	}
 
 	@Test

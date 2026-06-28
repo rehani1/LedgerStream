@@ -35,7 +35,6 @@ public class EventStreamingConfiguration {
 		config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
 		config.put(ProducerConfig.ACKS_CONFIG, "all");
 		config.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
-		config.put(JsonSerializer.ADD_TYPE_INFO_HEADERS, false);
 
 		JsonSerializer<Object> valueSerializer = new JsonSerializer<>(objectMapper);
 		valueSerializer.setAddTypeInfo(false);
