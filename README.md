@@ -132,6 +132,8 @@ The dashboard fetches supported symbols and latest quotes, opens the authenticat
 
 The portfolio route renders cash, total equity, realized and unrealized P&L, open positions, and paginated append-only ledger entries from the backend portfolio APIs.
 
+The orders route includes a market order ticket with per-submission idempotency keys, double-submit protection, order status feedback, cancellation for pending orders, and a user-scoped order history table.
+
 ### Demo Data
 
 Supported symbols are seeded by Flyway: `AAPL`, `MSFT`, `NVDA`, `TSLA`, and `SPY`.

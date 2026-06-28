@@ -22,7 +22,8 @@ a {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -382,15 +383,21 @@ th {
   font-weight: 700;
 }
 
-.form-panel input {
+.form-panel input,
+.form-panel select {
   min-height: 44px;
   border: 1px solid #cfd7cc;
   border-radius: 8px;
   padding: 0 12px;
   color: #17201b;
+  background: #ffffff;
 }
 
 .primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   min-height: 44px;
   border: 0;
   border-radius: 8px;
@@ -470,6 +477,136 @@ th {
   color: #17201b;
 }
 
+.order-workspace {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.34fr) minmax(0, 0.66fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.order-ticket {
+  padding: 0;
+}
+
+.order-ticket > label,
+.order-ticket > .segmented-field,
+.order-ticket > .primary-button,
+.order-ticket > .form-error,
+.order-ticket > .order-result {
+  margin-right: 20px;
+  margin-left: 20px;
+}
+
+.order-ticket > .primary-button,
+.order-ticket > .order-result:last-child {
+  margin-bottom: 20px;
+}
+
+.compact-heading {
+  padding: 16px 20px;
+}
+
+.segmented-field {
+  display: grid;
+  gap: 8px;
+  border: 0;
+  padding: 0;
+}
+
+.segmented-field legend {
+  color: #3c493f;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.segmented-control {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border: 1px solid #cfd7cc;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.segmented-control button {
+  min-height: 42px;
+  border: 0;
+  border-right: 1px solid #cfd7cc;
+  background: #ffffff;
+  color: #526158;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.segmented-control button:last-child {
+  border-right: 0;
+}
+
+.segmented-control button.active {
+  background: #dcebe1;
+  color: #0d5c45;
+}
+
+.icon-submit-button,
+.icon-action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-action-button {
+  gap: 6px;
+}
+
+.order-result {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #dce2da;
+  border-radius: 8px;
+  padding: 14px;
+  background: #fbfdf9;
+}
+
+.order-result span,
+.order-result small {
+  color: #657167;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.order-result strong {
+  font-size: 1rem;
+}
+
+.order-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  border-radius: 999px;
+  padding: 0 10px;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.status-pending {
+  background: #fff5dd;
+  color: #8a5a0a;
+}
+
+.status-filled {
+  background: #dcebe1;
+  color: #0d5c45;
+}
+
+.status-cancelled {
+  background: #ecefed;
+  color: #526158;
+}
+
+.status-rejected {
+  background: #fbe7e4;
+  color: #9f2f24;
+}
+
 @media (max-width: 760px) {
   .topbar {
     grid-template-columns: 1fr auto;
@@ -507,7 +644,8 @@ th {
   }
 
   .dashboard-heading,
-  .dashboard-grid {
+  .dashboard-grid,
+  .order-workspace {
     grid-template-columns: 1fr;
   }
 

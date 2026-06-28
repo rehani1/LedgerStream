@@ -43,4 +43,4 @@ docker compose --profile worker up --build market-data-worker
 
 After logging in locally, open the dashboard to see supported symbols, latest quote rows, stream connection state, and the selected symbol price chart. The frontend reads historical quote data from `/api/symbols/{ticker}/history` and consumes the authenticated SSE quote stream with the current access token.
 
-Open the portfolio route after submitting a paper order to confirm cash, total equity, realized and unrealized P&L, open positions, and paginated ledger entries update from the backend portfolio APIs.
+Open the orders route, select a symbol, choose buy or sell, submit a market paper order, and watch the order history show pending, filled, rejected, or cancelled status. Then open the portfolio route to confirm cash, total equity, realized and unrealized P&L, open positions, and paginated ledger entries update from the backend portfolio APIs.

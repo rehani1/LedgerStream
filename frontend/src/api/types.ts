@@ -102,3 +102,30 @@ export type LedgerPageResponse = {
   totalElements: number;
   totalPages: number;
 };
+
+export type OrderSide = 'BUY' | 'SELL';
+
+export type OrderType = 'MARKET' | 'LIMIT';
+
+export type OrderStatus = 'PENDING' | 'FILLED' | 'CANCELLED' | 'REJECTED';
+
+export type OrderResponse = {
+  id: string;
+  symbol: string;
+  side: OrderSide;
+  orderType: OrderType;
+  quantity: number;
+  limitPrice: number | null;
+  status: OrderStatus;
+  rejectionReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateOrderRequest = {
+  symbol: string;
+  side: OrderSide;
+  orderType: OrderType;
+  quantity: number;
+  limitPrice?: number | null;
+};
