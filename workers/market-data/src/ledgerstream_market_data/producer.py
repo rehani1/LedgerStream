@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from confluent_kafka import KafkaException, Producer
 
@@ -8,15 +8,29 @@ class ProducerError(Exception):
 
 
 class KafkaMarketTickPublisher:
-	def __init__(self, bootstrap_servers: str) -> None:
-		self._producer = Producer(
-			{
-				"bootstrap.servers": bootstrap_servers,
-				"client.id": "ledgerstream-market-data",
-				"enable.idempotence": True,
-				"acks": "all",
-			}
-		)
+	def __init__(
+		self,
+		bootstrap_servers: str,
+		security_protocol: Optional[str] = None,
+		sasl_mechanism: Optional[str] = None,
+		sasl_username: Optional[str] = None,
+		sasl_password: Optional[str] = None,
+	) -> None:
+		config = {
+			"bootstrap.servers": bootstrap_servers,
+			"client.id": "ledgerstream-market-data",
+			"enable.idempotence": True,
+			"acks": "all",
+		}
+		if security_protocol:
+			config["security.protocol"] = security_protocol
+		if sasl_mechanism:
+			config["sasl.mechanism"] = sasl_mechanism
+		if sasl_username:
+			config["sasl.username"] = sasl_username
+		if sasl_password:
+			config["sasl.password"] = sasl_password
+		self._producer = Producer(config)
 		self._errors: List[str] = []
 
 	def publish(self, topic: str, key: str, payload: str) -> None:

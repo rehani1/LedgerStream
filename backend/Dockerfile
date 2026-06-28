@@ -18,7 +18,12 @@ RUN apt-get update \
     && useradd --system --gid ledgerstream --home-dir /app --shell /usr/sbin/nologin ledgerstream
 COPY --from=build /workspace/target/backend-*.jar /app/backend.jar
 
+ENV SPRING_PROFILES_ACTIVE=production
+ENV JAVA_OPTS="-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"
+
 USER ledgerstream
 EXPOSE 8080
 
-ENTRYPOINT ["java", "-jar", "/app/backend.jar"]
+HEALTHCHECK --interval=30s --timeout=5s --retries=5 CMD curl -fsS http://localhost:${SERVER_PORT:-8080}/actuator/health >/dev/null || exit 1
+
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/backend.jar"]

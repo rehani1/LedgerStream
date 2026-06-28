@@ -35,6 +35,7 @@ public class EventStreamingConfiguration {
 		config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
 		config.put(ProducerConfig.ACKS_CONFIG, "all");
 		config.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
+		config.putAll(kafkaProperties.clientProperties());
 
 		JsonSerializer<Object> valueSerializer = new JsonSerializer<>(objectMapper);
 		valueSerializer.setAddTypeInfo(false);
@@ -58,6 +59,7 @@ public class EventStreamingConfiguration {
 		config.put(ConsumerConfig.GROUP_ID_CONFIG, kafkaProperties.consumerGroupId());
 		config.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
 		config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
+		config.putAll(kafkaProperties.clientProperties());
 
 		JsonDeserializer<MarketTickEvent> valueDeserializer = new JsonDeserializer<>(
 			MarketTickEvent.class,
@@ -88,6 +90,7 @@ public class EventStreamingConfiguration {
 		config.put(ConsumerConfig.GROUP_ID_CONFIG, kafkaProperties.consumerGroupId());
 		config.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
 		config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
+		config.putAll(kafkaProperties.clientProperties());
 
 		JsonDeserializer<OrderCreatedEvent> valueDeserializer = new JsonDeserializer<>(
 			OrderCreatedEvent.class,

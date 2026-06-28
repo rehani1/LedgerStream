@@ -245,6 +245,8 @@ Demo account seeding is disabled by default. For local development only, set `DE
 - [Performance](docs/performance.md)
 - [Demo Script](docs/demo-script.md)
 
+The documented deployment path is Vercel for the frontend, Render for the backend, Neon for PostgreSQL, Upstash Redis, and Redpanda Cloud or a documented event-stream fallback for demos.
+
 ## Security Checks
 
 Dependabot monitors backend Maven, frontend npm, and market-data worker Python dependencies. Pull requests also run Dependency Review and fail when dependency changes introduce high-severity vulnerable packages.

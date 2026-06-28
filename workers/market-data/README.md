@@ -14,6 +14,16 @@ PYTHONPATH=src python -m ledgerstream_market_data replay --file data/sample_tick
 
 The included `data/sample_ticks.csv` fixture contains 25 deterministic ticks across `AAPL`, `MSFT`, `NVDA`, `TSLA`, and `SPY`. The replay command validates the CSV schema and row values. `--dry-run` prints JSON payloads without Kafka; omit it to publish `market.tick` events to the configured Redpanda/Kafka broker.
 
+For hosted Kafka brokers that require TLS and SASL, set:
+
+```bash
+MARKET_DATA_KAFKA_BOOTSTRAP_SERVERS=<broker-host:port>
+MARKET_DATA_KAFKA_SECURITY_PROTOCOL=SASL_SSL
+MARKET_DATA_KAFKA_SASL_MECHANISM=SCRAM-SHA-256
+MARKET_DATA_KAFKA_SASL_USERNAME=<service-account>
+MARKET_DATA_KAFKA_SASL_PASSWORD=<service-secret>
+```
+
 ## Tests
 
 The CI-friendly worker test command is:

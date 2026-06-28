@@ -17,13 +17,23 @@ def replay_market_ticks(
 	topic: str,
 	bootstrap_servers: str,
 	speed: float,
+	kafka_security_protocol: Optional[str] = None,
+	kafka_sasl_mechanism: Optional[str] = None,
+	kafka_sasl_username: Optional[str] = None,
+	kafka_sasl_password: Optional[str] = None,
 	dry_run: bool = False,
 	output: TextIO = sys.stdout,
 	sleeper: Sleeper = time.sleep,
 	shutdown_event: Optional[Event] = None,
 	flush_timeout_seconds: float = 10,
 ) -> int:
-	publisher = None if dry_run else KafkaMarketTickPublisher(bootstrap_servers)
+	publisher = None if dry_run else KafkaMarketTickPublisher(
+		bootstrap_servers,
+		security_protocol=kafka_security_protocol,
+		sasl_mechanism=kafka_sasl_mechanism,
+		sasl_username=kafka_sasl_username,
+		sasl_password=kafka_sasl_password,
+	)
 	published_count = 0
 	previous_timestamp = None
 

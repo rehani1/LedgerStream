@@ -1,0 +1,55 @@
+spring:
+  config:
+    activate:
+      on-profile: production
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+  flyway:
+    enabled: true
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+
+logging:
+  structured:
+    format:
+      console: ${BACKEND_LOG_FORMAT:logstash}
+    json:
+      context:
+        include:
+          - requestId
+          - userId
+          - orderId
+          - symbol
+          - eventType
+          - httpMethod
+          - httpPath
+          - endpoint
+          - httpStatus
+          - latencyMs
+
+ledgerstream:
+  cors:
+    allowed-origins: ${BACKEND_CORS_ALLOWED_ORIGINS}
+  jwt:
+    issuer: ${BACKEND_JWT_ISSUER:ledgerstream-production}
+    secret: ${BACKEND_JWT_SECRET}
+  demo-seed:
+    enabled: false
+    admin-enabled: false
+  market-replay:
+    enabled: false

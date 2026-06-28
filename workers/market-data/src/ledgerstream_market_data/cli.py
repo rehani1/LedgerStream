@@ -57,6 +57,26 @@ def build_parser(settings: Optional[MarketDataSettings] = None) -> argparse.Argu
 		help="Kafka topic for normalized market ticks.",
 	)
 	replay.add_argument(
+		"--security-protocol",
+		default=settings.kafka_security_protocol,
+		help="Optional Kafka security protocol, for example SASL_SSL.",
+	)
+	replay.add_argument(
+		"--sasl-mechanism",
+		default=settings.kafka_sasl_mechanism,
+		help="Optional Kafka SASL mechanism, for example SCRAM-SHA-256.",
+	)
+	replay.add_argument(
+		"--sasl-username",
+		default=settings.kafka_sasl_username,
+		help="Optional Kafka SASL username.",
+	)
+	replay.add_argument(
+		"--sasl-password",
+		default=settings.kafka_sasl_password,
+		help="Optional Kafka SASL password.",
+	)
+	replay.add_argument(
 		"--speed",
 		type=positive_float,
 		default=settings.replay_speed,
@@ -105,6 +125,10 @@ def run_replay(args: argparse.Namespace) -> int:
 			topic=args.topic,
 			bootstrap_servers=args.bootstrap_servers,
 			speed=args.speed,
+			kafka_security_protocol=args.security_protocol,
+			kafka_sasl_mechanism=args.sasl_mechanism,
+			kafka_sasl_username=args.sasl_username,
+			kafka_sasl_password=args.sasl_password,
 			dry_run=args.dry_run,
 			shutdown_event=getattr(args, "shutdown_event", None),
 			flush_timeout_seconds=args.flush_timeout,

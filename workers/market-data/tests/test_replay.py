@@ -39,10 +39,13 @@ def test_replay_market_ticks_publishes_to_kafka(monkeypatch, tmp_path: Path) -> 
 	)
 	publish_calls = []
 	flush_calls = []
+	publisher_kwargs = []
 
 	class FakePublisher:
-		def __init__(self, bootstrap_servers: str) -> None:
+		def __init__(self, bootstrap_servers: str, **kwargs) -> None:
 			self.bootstrap_servers = bootstrap_servers
+			self.kwargs = kwargs
+			publisher_kwargs.append(kwargs)
 
 		def publish(self, topic: str, key: str, payload: str) -> None:
 			publish_calls.append((topic, key, payload))
@@ -57,6 +60,10 @@ def test_replay_market_ticks_publishes_to_kafka(monkeypatch, tmp_path: Path) -> 
 		topic="market.tick",
 		bootstrap_servers="redpanda:9092",
 		speed=100.0,
+		kafka_security_protocol="SASL_SSL",
+		kafka_sasl_mechanism="SCRAM-SHA-256",
+		kafka_sasl_username="worker",
+		kafka_sasl_password="worker-password",
 		dry_run=False,
 		flush_timeout_seconds=4,
 	)
@@ -65,6 +72,14 @@ def test_replay_market_ticks_publishes_to_kafka(monkeypatch, tmp_path: Path) -> 
 	assert publish_calls[0][0] == "market.tick"
 	assert publish_calls[0][1] == "AAPL"
 	assert '"last":187.150000' in publish_calls[0][2]
+	assert publisher_kwargs == [
+		{
+			"security_protocol": "SASL_SSL",
+			"sasl_mechanism": "SCRAM-SHA-256",
+			"sasl_username": "worker",
+			"sasl_password": "worker-password",
+		}
+	]
 	assert flush_calls == [4]
 
 
@@ -80,7 +95,7 @@ def test_replay_market_ticks_uses_scaled_delays_without_sleeping(monkeypatch, tm
 	sleep_calls = []
 
 	class FakePublisher:
-		def __init__(self, bootstrap_servers: str) -> None:
+		def __init__(self, bootstrap_servers: str, **kwargs) -> None:
 			self.bootstrap_servers = bootstrap_servers
 
 		def publish(self, topic: str, key: str, payload: str) -> None:
