@@ -417,6 +417,7 @@ LedgerStream uses JSON payloads on Kafka-compatible topics.
   "orderType": "MARKET",
   "quantity": 10.000000,
   "limitPrice": null,
+  "requestId": "request-id",
   "createdAt": "2026-01-01T14:30:01Z"
 }
 ```

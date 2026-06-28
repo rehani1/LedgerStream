@@ -3,6 +3,7 @@ package com.ledgerstream.orders;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -12,9 +13,11 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.ledgerstream.audit.AuditService;
 import com.ledgerstream.auth.AuthenticatedUser;
 import com.ledgerstream.domain.model.AssetType;
 import com.ledgerstream.domain.model.OrderSide;
@@ -59,6 +62,9 @@ class OrderServiceTest {
 	@Mock
 	private EventPublisher eventPublisher;
 
+	@Mock
+	private AuditService auditService;
+
 	private OrderService orderService;
 	private AuthenticatedUser authenticatedUser;
 	private User user;
@@ -71,6 +77,7 @@ class OrderServiceTest {
 			symbolRepository,
 			orderRepository,
 			eventPublisher,
+			auditService,
 			Clock.fixed(NOW, ZoneOffset.UTC)
 		);
 		authenticatedUser = new AuthenticatedUser(USER_ID, "user@example.com", UserRole.USER);
@@ -88,7 +95,8 @@ class OrderServiceTest {
 		CreateOrderResult result = orderService.createOrder(
 			authenticatedUser,
 			" order-key-1 ",
-			new CreateOrderRequest("aapl", OrderSide.BUY, OrderType.MARKET, new BigDecimal("10.000000"), null)
+			new CreateOrderRequest("aapl", OrderSide.BUY, OrderType.MARKET, new BigDecimal("10.000000"), null),
+			"request-1"
 		);
 		OrderResponse response = result.order();
 
@@ -114,7 +122,21 @@ class OrderServiceTest {
 		assertThat(event.orderType()).isEqualTo(OrderType.MARKET);
 		assertThat(event.quantity()).isEqualByComparingTo("10.000000");
 		assertThat(event.limitPrice()).isNull();
+		assertThat(event.requestId()).isEqualTo("request-1");
 		assertThat(event.createdAt()).isEqualTo(NOW);
+
+		verify(auditService).record(
+			eq(user),
+			eq("ORDER_CREATED"),
+			eq("request-1"),
+			eq(Map.of(
+				"orderId", response.id().toString(),
+				"symbol", "AAPL",
+				"side", "BUY",
+				"orderType", "MARKET",
+				"quantity", new BigDecimal("10.000000")
+			))
+		);
 
 		assertThat(response.symbol()).isEqualTo("AAPL");
 		assertThat(response.status()).isEqualTo(OrderStatus.PENDING);
@@ -138,6 +160,7 @@ class OrderServiceTest {
 		verify(orderRepository, never()).save(any(TradeOrder.class));
 		verify(userRepository, never()).findById(any(UUID.class));
 		verify(eventPublisher, never()).publishOrderCreated(any(OrderCreatedEvent.class));
+		verify(auditService, never()).record(any(), any(), any(), any());
 	}
 
 	@Test
@@ -197,11 +220,23 @@ class OrderServiceTest {
 		when(orderRepository.findByIdAndUserId(orderId, USER_ID)).thenReturn(Optional.of(pendingOrder));
 		when(orderRepository.save(pendingOrder)).thenReturn(pendingOrder);
 
-		OrderResponse response = orderService.cancelOrder(authenticatedUser, orderId);
+		OrderResponse response = orderService.cancelOrder(authenticatedUser, orderId, "request-cancel-1");
 
 		assertThat(response.status()).isEqualTo(OrderStatus.CANCELLED);
 		assertThat(pendingOrder.getStatus()).isEqualTo(OrderStatus.CANCELLED);
 		verify(orderRepository).save(pendingOrder);
+		verify(auditService).record(
+			eq(user),
+			eq("ORDER_CANCELLED"),
+			eq("request-cancel-1"),
+			eq(Map.of(
+				"orderId", orderId.toString(),
+				"symbol", "AAPL",
+				"side", "BUY",
+				"orderType", "MARKET",
+				"quantity", new BigDecimal("10.000000")
+			))
+		);
 	}
 
 	@Test

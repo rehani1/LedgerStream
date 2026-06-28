@@ -4,8 +4,10 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
 
+import com.ledgerstream.audit.AuditService;
 import com.ledgerstream.domain.model.Fill;
 import com.ledgerstream.domain.model.OrderSide;
 import com.ledgerstream.domain.model.OrderStatus;
@@ -49,6 +51,7 @@ public class OrderExecutionService {
 	private final PortfolioLedgerService portfolioLedgerService;
 	private final RiskCalculationService riskCalculationService;
 	private final EventPublisher eventPublisher;
+	private final AuditService auditService;
 	private final Clock clock;
 
 	public OrderExecutionService(
@@ -60,6 +63,7 @@ public class OrderExecutionService {
 		PortfolioLedgerService portfolioLedgerService,
 		RiskCalculationService riskCalculationService,
 		EventPublisher eventPublisher,
+		AuditService auditService,
 		Clock clock
 	) {
 		this.orderRepository = orderRepository;
@@ -70,29 +74,34 @@ public class OrderExecutionService {
 		this.portfolioLedgerService = portfolioLedgerService;
 		this.riskCalculationService = riskCalculationService;
 		this.eventPublisher = eventPublisher;
+		this.auditService = auditService;
 		this.clock = clock;
 	}
 
 	@Transactional
 	public void execute(OrderCreatedEvent event) {
-		orderRepository.findById(event.orderId()).ifPresent(this::execute);
+		orderRepository.findById(event.orderId()).ifPresent(order -> execute(order, event.requestId()));
 	}
 
 	@Transactional
 	public void execute(TradeOrder order) {
+		execute(order, null);
+	}
+
+	private void execute(TradeOrder order, String requestId) {
 		if (order.getStatus() != OrderStatus.PENDING || order.getOrderType() != OrderType.MARKET) {
 			return;
 		}
 
 		QuoteResponse quote = latestQuote(order);
 		if (quote == null) {
-			reject(order, "No market quote available");
+			reject(order, "No market quote available", requestId);
 			return;
 		}
 
 		BigDecimal executionPrice = executionPrice(order.getSide(), quote);
 		if (executionPrice == null || executionPrice.compareTo(BigDecimal.ZERO) <= 0) {
-			reject(order, "No executable market price available");
+			reject(order, "No executable market price available", requestId);
 			return;
 		}
 
@@ -101,11 +110,11 @@ public class OrderExecutionService {
 		if (order.getSide() == OrderSide.BUY) {
 			portfolio = portfolioRepository.findByUserId(order.getUser().getId()).orElse(null);
 			if (portfolio == null) {
-				reject(order, "Portfolio not found");
+				reject(order, "Portfolio not found", requestId);
 				return;
 			}
 			if (!hasSufficientCash(portfolio, order, executionPrice)) {
-				reject(order, "Insufficient cash");
+				reject(order, "Insufficient cash", requestId);
 				return;
 			}
 		} else {
@@ -113,12 +122,12 @@ public class OrderExecutionService {
 				.findByUserIdAndSymbolTicker(order.getUser().getId(), order.getSymbol().getTicker())
 				.orElse(null);
 			if (!hasSufficientShares(sellPosition, order)) {
-				reject(order, "Insufficient shares");
+				reject(order, "Insufficient shares", requestId);
 				return;
 			}
 			portfolio = portfolioRepository.findByUserId(order.getUser().getId()).orElse(null);
 			if (portfolio == null) {
-				reject(order, "Portfolio not found");
+				reject(order, "Portfolio not found", requestId);
 				return;
 			}
 		}
@@ -251,10 +260,22 @@ public class OrderExecutionService {
 		return value.setScale(QUANTITY_SCALE, ACCOUNTING_ROUNDING);
 	}
 
-	private void reject(TradeOrder order, String reason) {
+	private void reject(TradeOrder order, String reason, String requestId) {
 		order.setStatus(OrderStatus.REJECTED);
 		order.setRejectionReason(reason);
 		orderRepository.save(order);
+		auditService.record(order.getUser(), "ORDER_REJECTED", requestId, orderRejectionMetadata(order, reason));
+	}
+
+	private Map<String, Object> orderRejectionMetadata(TradeOrder order, String reason) {
+		return Map.of(
+			"orderId", order.getId().toString(),
+			"symbol", order.getSymbol().getTicker(),
+			"side", order.getSide().name(),
+			"orderType", order.getOrderType().name(),
+			"quantity", order.getQuantity(),
+			"reason", reason
+		);
 	}
 
 	private OrderFilledEvent toOrderFilledEvent(Fill fill) {

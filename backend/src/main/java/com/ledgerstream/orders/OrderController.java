@@ -6,6 +6,8 @@ import java.util.UUID;
 import com.ledgerstream.auth.AuthenticatedUser;
 import com.ledgerstream.orders.dto.CreateOrderRequest;
 import com.ledgerstream.orders.dto.OrderResponse;
+import com.ledgerstream.web.RequestIdFilter;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -32,9 +34,10 @@ public class OrderController {
 	public ResponseEntity<OrderResponse> createOrder(
 		@AuthenticationPrincipal AuthenticatedUser authenticatedUser,
 		@RequestHeader("Idempotency-Key") String idempotencyKey,
-		@Valid @RequestBody CreateOrderRequest request
+		@Valid @RequestBody CreateOrderRequest request,
+		HttpServletRequest servletRequest
 	) {
-		CreateOrderResult result = orderService.createOrder(authenticatedUser, idempotencyKey, request);
+		CreateOrderResult result = orderService.createOrder(authenticatedUser, idempotencyKey, request, requestId(servletRequest));
 		return ResponseEntity.status(result.created() ? HttpStatus.CREATED : HttpStatus.OK).body(result.order());
 	}
 
@@ -54,8 +57,14 @@ public class OrderController {
 	@PostMapping("/{id}/cancel")
 	public OrderResponse cancelOrder(
 		@AuthenticationPrincipal AuthenticatedUser authenticatedUser,
-		@PathVariable UUID id
+		@PathVariable UUID id,
+		HttpServletRequest servletRequest
 	) {
-		return orderService.cancelOrder(authenticatedUser, id);
+		return orderService.cancelOrder(authenticatedUser, id, requestId(servletRequest));
+	}
+
+	private String requestId(HttpServletRequest request) {
+		Object requestId = request.getAttribute(RequestIdFilter.REQUEST_ID_ATTRIBUTE);
+		return requestId == null ? null : requestId.toString();
 	}
 }

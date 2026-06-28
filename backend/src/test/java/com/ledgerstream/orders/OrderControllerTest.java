@@ -1,6 +1,7 @@
 package com.ledgerstream.orders;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -61,12 +62,13 @@ class OrderControllerTest {
 	@Test
 	void createOrderReturnsCreatedForFirstSubmission() throws Exception {
 		OrderResponse response = orderResponse(OrderStatus.PENDING);
-		when(orderService.createOrder(any(AuthenticatedUser.class), eq("order-key-1"), any(CreateOrderRequest.class)))
+		when(orderService.createOrder(any(AuthenticatedUser.class), eq("order-key-1"), any(CreateOrderRequest.class), eq("order-request-1")))
 			.thenReturn(new CreateOrderResult(response, true));
 
 		mockMvc.perform(post("/api/orders")
 				.with(authentication(authenticatedUser()))
 				.header("Idempotency-Key", "order-key-1")
+				.header("X-Request-ID", "order-request-1")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(marketOrderJson()))
 			.andExpect(status().isCreated())
@@ -77,13 +79,13 @@ class OrderControllerTest {
 			.andExpect(jsonPath("$.quantity").value(10.000000))
 			.andExpect(jsonPath("$.status").value("PENDING"));
 
-		verify(orderService).createOrder(any(AuthenticatedUser.class), eq("order-key-1"), any(CreateOrderRequest.class));
+		verify(orderService).createOrder(any(AuthenticatedUser.class), eq("order-key-1"), any(CreateOrderRequest.class), eq("order-request-1"));
 	}
 
 	@Test
 	void duplicateIdempotencyKeyReturnsExistingOrderWithOk() throws Exception {
 		OrderResponse response = orderResponse(OrderStatus.PENDING);
-		when(orderService.createOrder(any(AuthenticatedUser.class), eq("order-key-1"), any(CreateOrderRequest.class)))
+		when(orderService.createOrder(any(AuthenticatedUser.class), eq("order-key-1"), any(CreateOrderRequest.class), anyString()))
 			.thenReturn(new CreateOrderResult(response, false));
 
 		mockMvc.perform(post("/api/orders")
@@ -124,9 +126,11 @@ class OrderControllerTest {
 	@Test
 	void cancelOrderReturnsUpdatedStatus() throws Exception {
 		OrderResponse response = orderResponse(OrderStatus.CANCELLED);
-		when(orderService.cancelOrder(any(AuthenticatedUser.class), eq(response.id()))).thenReturn(response);
+		when(orderService.cancelOrder(any(AuthenticatedUser.class), eq(response.id()), eq("cancel-request-1"))).thenReturn(response);
 
-		mockMvc.perform(post("/api/orders/{id}/cancel", response.id()).with(authentication(authenticatedUser())))
+		mockMvc.perform(post("/api/orders/{id}/cancel", response.id())
+				.with(authentication(authenticatedUser()))
+				.header("X-Request-ID", "cancel-request-1"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.id").value(response.id().toString()))
 			.andExpect(jsonPath("$.status").value("CANCELLED"));
@@ -135,7 +139,7 @@ class OrderControllerTest {
 	@Test
 	void cancelOrderConflictReturnsCleanError() throws Exception {
 		UUID orderId = UUID.randomUUID();
-		when(orderService.cancelOrder(any(AuthenticatedUser.class), eq(orderId)))
+		when(orderService.cancelOrder(any(AuthenticatedUser.class), eq(orderId), anyString()))
 			.thenThrow(new ResponseStatusException(HttpStatus.CONFLICT, "Only pending orders can be cancelled"));
 
 		mockMvc.perform(post("/api/orders/{id}/cancel", orderId).with(authentication(authenticatedUser())))

@@ -39,6 +39,7 @@ class OrderExecutionConsumerTest {
 			OrderType.MARKET,
 			new BigDecimal("10.000000"),
 			null,
+			"request-1",
 			Instant.parse("2026-01-02T14:35:00Z")
 		);
 

@@ -42,6 +42,7 @@ class KafkaEventPublisherTest {
 			OrderType.MARKET,
 			new BigDecimal("10.000000"),
 			null,
+			"request-1",
 			Instant.parse("2026-01-01T14:30:00Z")
 		);
 		when(kafkaTemplate.send(EventTopics.ORDER_CREATED, orderId.toString(), event))

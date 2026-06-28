@@ -5,9 +5,11 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
+import com.ledgerstream.audit.AuditService;
 import com.ledgerstream.auth.AuthenticatedUser;
 import com.ledgerstream.domain.model.OrderStatus;
 import com.ledgerstream.domain.model.OrderType;
@@ -36,6 +38,7 @@ public class OrderService {
 	private final SymbolRepository symbolRepository;
 	private final OrderRepository orderRepository;
 	private final EventPublisher eventPublisher;
+	private final AuditService auditService;
 	private final Clock clock;
 
 	public OrderService(
@@ -43,12 +46,14 @@ public class OrderService {
 		SymbolRepository symbolRepository,
 		OrderRepository orderRepository,
 		EventPublisher eventPublisher,
+		AuditService auditService,
 		Clock clock
 	) {
 		this.userRepository = userRepository;
 		this.symbolRepository = symbolRepository;
 		this.orderRepository = orderRepository;
 		this.eventPublisher = eventPublisher;
+		this.auditService = auditService;
 		this.clock = clock;
 	}
 
@@ -58,21 +63,38 @@ public class OrderService {
 		String idempotencyKey,
 		CreateOrderRequest request
 	) {
+		return createOrder(authenticatedUser, idempotencyKey, request, null);
+	}
+
+	@Transactional
+	public CreateOrderResult createOrder(
+		AuthenticatedUser authenticatedUser,
+		String idempotencyKey,
+		CreateOrderRequest request,
+		String requestId
+	) {
 		String normalizedIdempotencyKey = normalizeIdempotencyKey(idempotencyKey);
 		return orderRepository.findByUserIdAndIdempotencyKey(authenticatedUser.id(), normalizedIdempotencyKey)
 			.map(order -> new CreateOrderResult(OrderResponse.from(order), false))
-			.orElseGet(() -> createNewOrder(authenticatedUser, normalizedIdempotencyKey, request));
+			.orElseGet(() -> createNewOrder(authenticatedUser, normalizedIdempotencyKey, request, requestId));
 	}
 
 	@Transactional
 	public OrderResponse cancelOrder(AuthenticatedUser authenticatedUser, UUID orderId) {
+		return cancelOrder(authenticatedUser, orderId, null);
+	}
+
+	@Transactional
+	public OrderResponse cancelOrder(AuthenticatedUser authenticatedUser, UUID orderId, String requestId) {
 		TradeOrder order = orderRepository.findByIdAndUserId(orderId, authenticatedUser.id())
 			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
 		if (order.getStatus() != OrderStatus.PENDING) {
 			throw new ResponseStatusException(HttpStatus.CONFLICT, "Only pending orders can be cancelled");
 		}
 		order.setStatus(OrderStatus.CANCELLED);
-		return OrderResponse.from(orderRepository.save(order));
+		TradeOrder savedOrder = orderRepository.save(order);
+		auditService.record(savedOrder.getUser(), "ORDER_CANCELLED", requestId, orderMetadata(savedOrder));
+		return OrderResponse.from(savedOrder);
 	}
 
 	@Transactional(readOnly = true)
@@ -92,7 +114,8 @@ public class OrderService {
 	private CreateOrderResult createNewOrder(
 		AuthenticatedUser authenticatedUser,
 		String idempotencyKey,
-		CreateOrderRequest request
+		CreateOrderRequest request,
+		String requestId
 	) {
 		validateRequest(request);
 		User user = userRepository.findById(authenticatedUser.id())
@@ -112,7 +135,8 @@ public class OrderService {
 		order.setIdempotencyKey(idempotencyKey);
 
 		TradeOrder savedOrder = orderRepository.save(order);
-		eventPublisher.publishOrderCreated(toOrderCreatedEvent(savedOrder));
+		auditService.record(savedOrder.getUser(), "ORDER_CREATED", requestId, orderMetadata(savedOrder));
+		eventPublisher.publishOrderCreated(toOrderCreatedEvent(savedOrder, requestId));
 		return new CreateOrderResult(OrderResponse.from(savedOrder), true);
 	}
 
@@ -141,7 +165,7 @@ public class OrderService {
 		}
 	}
 
-	private OrderCreatedEvent toOrderCreatedEvent(TradeOrder order) {
+	private OrderCreatedEvent toOrderCreatedEvent(TradeOrder order, String requestId) {
 		return new OrderCreatedEvent(
 			UUID.randomUUID(),
 			order.getId(),
@@ -151,7 +175,18 @@ public class OrderService {
 			order.getOrderType(),
 			order.getQuantity(),
 			order.getLimitPrice(),
+			requestId,
 			order.getCreatedAt() == null ? Instant.now(clock) : order.getCreatedAt()
+		);
+	}
+
+	private Map<String, Object> orderMetadata(TradeOrder order) {
+		return Map.of(
+			"orderId", order.getId().toString(),
+			"symbol", order.getSymbol().getTicker(),
+			"side", order.getSide().name(),
+			"orderType", order.getOrderType().name(),
+			"quantity", order.getQuantity()
 		);
 	}
 

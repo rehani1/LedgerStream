@@ -2,6 +2,7 @@ package com.ledgerstream.orders;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -10,9 +11,11 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.ledgerstream.audit.AuditService;
 import com.ledgerstream.domain.model.AssetType;
 import com.ledgerstream.domain.model.Fill;
 import com.ledgerstream.domain.model.OrderSide;
@@ -74,6 +77,9 @@ class OrderExecutionServiceTest {
 	@Mock
 	private EventPublisher eventPublisher;
 
+	@Mock
+	private AuditService auditService;
+
 	private OrderExecutionService executionService;
 	private User user;
 	private Symbol symbol;
@@ -89,6 +95,7 @@ class OrderExecutionServiceTest {
 			portfolioLedgerService,
 			riskCalculationService,
 			eventPublisher,
+			auditService,
 			Clock.fixed(NOW, ZoneOffset.UTC)
 		);
 		user = user();
@@ -262,18 +269,33 @@ class OrderExecutionServiceTest {
 	@Test
 	void insufficientCashRejectsOrderWithoutFill() {
 		TradeOrder order = order(OrderSide.BUY, OrderType.MARKET, OrderStatus.PENDING, new BigDecimal("10.000000"));
+		OrderCreatedEvent event = orderCreatedEvent(order, "request-reject-1");
 		when(quoteQueryService.getLatestQuote("AAPL")).thenReturn(quote(
 			new BigDecimal("187.360000"),
 			new BigDecimal("187.480000"),
 			new BigDecimal("187.420000")
 		));
+		when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
 		when(portfolioRepository.findByUserId(USER_ID)).thenReturn(Optional.of(portfolio(new BigDecimal("100.00"))));
 		when(orderRepository.save(order)).thenReturn(order);
 
-		executionService.execute(order);
+		executionService.execute(event);
 
 		assertThat(order.getStatus()).isEqualTo(OrderStatus.REJECTED);
 		assertThat(order.getRejectionReason()).isEqualTo("Insufficient cash");
+		verify(auditService).record(
+			eq(user),
+			eq("ORDER_REJECTED"),
+			eq("request-reject-1"),
+			eq(Map.of(
+				"orderId", order.getId().toString(),
+				"symbol", "AAPL",
+				"side", "BUY",
+				"orderType", "MARKET",
+				"quantity", new BigDecimal("10.000000"),
+				"reason", "Insufficient cash"
+			))
+		);
 		verify(fillRepository, never()).save(any(Fill.class));
 		verify(portfolioLedgerService, never()).appendFill(any(), any(), any(), any());
 		verify(riskCalculationService, never()).recordSnapshot(any());
@@ -362,6 +384,7 @@ class OrderExecutionServiceTest {
 			OrderType.LIMIT,
 			new BigDecimal("1.000000"),
 			new BigDecimal("180.000000"),
+			"request-event-1",
 			NOW
 		);
 		when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
@@ -369,6 +392,21 @@ class OrderExecutionServiceTest {
 		executionService.execute(event);
 
 		verify(orderRepository).findById(order.getId());
+	}
+
+	private OrderCreatedEvent orderCreatedEvent(TradeOrder order, String requestId) {
+		return new OrderCreatedEvent(
+			UUID.randomUUID(),
+			order.getId(),
+			USER_ID,
+			order.getSymbol().getTicker(),
+			order.getSide(),
+			order.getOrderType(),
+			order.getQuantity(),
+			order.getLimitPrice(),
+			requestId,
+			order.getCreatedAt()
+		);
 	}
 
 	private Fill persistFill(Fill fill) {

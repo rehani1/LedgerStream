@@ -16,6 +16,7 @@ public record OrderCreatedEvent(
 	OrderType orderType,
 	BigDecimal quantity,
 	BigDecimal limitPrice,
+	String requestId,
 	Instant createdAt
 ) {
 }

@@ -41,6 +41,12 @@ Demo account seeding is disabled by default and only available under `local` or 
 - Missing or cross-user financial resources are reported as `404` to avoid leaking another user's resource existence.
 - Admin replay start and stop controls record audit events and do not accept user-controlled worker commands or shell arguments.
 
+## Implemented Audit Events
+
+The backend persists audit rows for registration, login success, safe login failure reasons, refresh-token rotation, logout, order creation, order cancellation, order rejection, and admin replay start or stop. Audit rows include the current request ID when the action originates from an HTTP request. Order rejection audits preserve the original order-submission request ID by carrying it on the internal `order.created` event.
+
+Audit metadata is limited to operational identifiers and state such as order ID, symbol, order side/type, quantity, and safe rejection reason. Passwords, access tokens, refresh tokens, API keys, and raw IP addresses are not stored in audit metadata. The application currently omits IP address collection rather than storing raw network identifiers.
+
 ## Token Storage Tradeoff
 
 Refresh tokens are currently returned in response bodies for API and testability. The frontend stores the access token, refresh token, expirations, and current user in `sessionStorage` for the MVP. This avoids persistence across browser restarts but is still readable by JavaScript if an XSS bug exists. A production deployment should move refresh tokens to `Secure`, `HttpOnly`, `SameSite` cookies and keep access tokens in memory where practical.

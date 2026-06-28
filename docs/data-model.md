@@ -115,6 +115,12 @@ Each filled market order currently creates one ledger entry:
 
 The current zero-fee model stores fee metadata on the fill ledger row. If a nonzero fee model is added later, the platform can either keep net cash deltas on fill rows or add explicit `FEE` rows while preserving append-only history.
 
+## Audit Events
+
+`audit_events` stores security, financial, and admin control actions with a nullable user reference, action name, request ID, timestamp, and JSON metadata. Implemented actions include registration, login success and safe failure reasons, refresh-token rotation, logout, order creation, order cancellation, order rejection, and admin replay start or stop.
+
+Audit metadata intentionally excludes passwords, access tokens, refresh tokens, API keys, and raw IP addresses. Order audit metadata stores operational values such as order ID, symbol, side, type, quantity, and safe rejection reason so support and security reviews can reconstruct important state transitions without exposing secrets.
+
 ## Persistence Mapping
 
 The backend maps schema rows to JPA entities under `com.ledgerstream.domain.model` and repositories under `com.ledgerstream.domain.repository`.
