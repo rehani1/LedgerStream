@@ -29,6 +29,8 @@ Demo credentials: no shared public credentials are committed. Use local demo see
 
 Demo video: placeholder until a 60-90 second walkthrough is recorded.
 
+Demo materials: [screenshot placeholders](docs/demo-script.md#screenshot-placeholders) and [60-90 second video script](docs/demo-script.md#60-90-second-demo-video-script).
+
 Current public deployment notes are tracked in [Deployment](docs/deployment.md) and [Demo Script](docs/demo-script.md). On June 28, 2026, Render health returned `UP`; direct backend auth, symbols, portfolio, positions, and ledger reads worked. Browser API calls still require Vercel `VITE_API_BASE_URL=https://ledgerstream-backend-5rk9.onrender.com` and Render `BACKEND_CORS_ALLOWED_ORIGINS=https://ledger-stream.vercel.app`. Quote and fill demos require a hosted market-data producer publishing `market.tick` events.
 
 ## Architecture

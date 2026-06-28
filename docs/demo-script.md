@@ -47,6 +47,39 @@ As of the June 28, 2026 smoke test, the Render backend health endpoint was `UP`;
 9. Show risk metrics.
 10. Show Prometheus or Grafana observability.
 
+## Screenshot Placeholders
+
+Capture real screenshots after the public frontend API base URL, backend CORS, and hosted market-data replay path are fully verified. Until then, use this table as the placeholder checklist.
+
+| Screenshot | Placeholder path | Capture criteria |
+| --- | --- | --- |
+| Dashboard | `docs/assets/demo/dashboard.png` | Authenticated dashboard showing symbols, quote cards, stream state, and chart. |
+| Order ticket | `docs/assets/demo/order-ticket.png` | Market BUY order form with symbol, side, quantity, and idempotent submit state. |
+| Portfolio | `docs/assets/demo/portfolio.png` | Portfolio summary with cash, total equity, positions, and P&L fields. |
+| Ledger | `docs/assets/demo/ledger.png` | Append-only ledger table showing cash and quantity deltas from a fill. |
+| Risk dashboard | `docs/assets/demo/risk-dashboard.png` | Latest risk snapshot and historical risk chart. |
+| Grafana metrics | `docs/assets/observability/grafana-ledgerstream-overview.png` | `LedgerStream Overview` dashboard with API, order, tick, cache, JVM, and process panels. |
+| GitHub Actions passing | `docs/assets/demo/github-actions-ci.png` | Latest `main` branch CI run passing on GitHub Actions. |
+
+Do not commit screenshots that include access tokens, refresh tokens, provider secrets, private email addresses, or raw production credentials.
+
+## 60-90 Second Demo Video Script
+
+Target length: 75 seconds.
+
+| Time | Screen | Narration |
+| --- | --- | --- |
+| 0-8s | README and live links | "LedgerStream is a deployed paper-trading platform with a Spring Boot event-driven backend, React dashboard, PostgreSQL, Redis, and Redpanda." |
+| 8-15s | Login/register | "The demo starts with authenticated access. The backend uses JWT access tokens and refresh-token rotation." |
+| 15-25s | Dashboard quotes | "Market data enters through deterministic replay, is published as `market.tick`, cached in Redis, persisted in PostgreSQL, and streamed to the dashboard." |
+| 25-37s | Order ticket | "Orders require an `Idempotency-Key`, so duplicate submissions return the existing order instead of creating duplicate fills." |
+| 37-48s | Order history/fill | "The backend publishes `order.created`; the execution consumer uses the latest quote and writes the fill transactionally." |
+| 48-58s | Portfolio and ledger | "Cash, positions, fills, and append-only ledger entries are updated together inside the database transaction." |
+| 58-66s | Risk dashboard | "Risk snapshots track total equity, cash, gross exposure, concentration, and unrealized P&L." |
+| 66-75s | Grafana and CI | "The system exposes Prometheus metrics, structured logs, Grafana dashboards, CI, dependency scanning, and measured k6 baseline results." |
+
+If the public market-data producer is not running yet, record the video against the seeded local Docker Compose stack and state that the hosted deployment uses the same service boundaries.
+
 ## Public API Smoke Flow
 
 Use this when validating the deployed backend before browser testing. Do not print or store returned tokens.
@@ -64,12 +97,15 @@ Use this when validating the deployed backend before browser testing. Do not pri
 
 If quote data has not been replayed into Redpanda/PostgreSQL/Redis yet, `GET /api/symbols/AAPL/quote` can return `404`. If the hosted Kafka credentials are missing or not mapped to the backend's `BACKEND_KAFKA_*` environment variables, order submission can stall or fail because the backend cannot publish `order.created`.
 
-## Remaining Demo Assets
+## Demo Readiness Checklist
 
-- Add demo credentials only when safe and demo-only.
-- Add screenshot links.
-- Add video link or final narration.
-- Add a hosted market-data worker or a scripted operator command that publishes deterministic ticks to Redpanda Cloud.
+- Public backend health returns `UP`.
+- Vercel is rebuilt with `VITE_API_BASE_URL=https://ledgerstream-backend-5rk9.onrender.com`.
+- Render CORS allows `https://ledger-stream.vercel.app`.
+- Demo credentials are either self-registered for the session or seeded only in a controlled demo environment.
+- A market-data producer publishes deterministic ticks to Redpanda Cloud, or the demo is run locally with the Compose worker profile.
+- Screenshot placeholders above are replaced with real screenshots that do not expose secrets.
+- The 60-90 second video is recorded and linked from README.
 
 ## Local Demo Data
 
