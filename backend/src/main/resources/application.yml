@@ -77,6 +77,24 @@ ledgerstream:
     enabled: ${MARKET_DATA_REPLAY_ENABLED:false}
     tick-topic: ${MARKET_DATA_TICK_TOPIC:market.tick}
     replay-speed: ${MARKET_DATA_REPLAY_SPEED:1.0}
+  rate-limit:
+    enabled: ${BACKEND_RATE_LIMIT_ENABLED:true}
+    login:
+      enabled: ${BACKEND_RATE_LIMIT_LOGIN_ENABLED:true}
+      max-requests: ${BACKEND_RATE_LIMIT_LOGIN_MAX_REQUESTS:5}
+      window: ${BACKEND_RATE_LIMIT_LOGIN_WINDOW:1m}
+    registration:
+      enabled: ${BACKEND_RATE_LIMIT_REGISTRATION_ENABLED:true}
+      max-requests: ${BACKEND_RATE_LIMIT_REGISTRATION_MAX_REQUESTS:3}
+      window: ${BACKEND_RATE_LIMIT_REGISTRATION_WINDOW:10m}
+    order-creation:
+      enabled: ${BACKEND_RATE_LIMIT_ORDER_CREATION_ENABLED:true}
+      max-requests: ${BACKEND_RATE_LIMIT_ORDER_CREATION_MAX_REQUESTS:60}
+      window: ${BACKEND_RATE_LIMIT_ORDER_CREATION_WINDOW:1m}
+    quote-stream:
+      enabled: ${BACKEND_RATE_LIMIT_QUOTE_STREAM_ENABLED:true}
+      max-requests: ${BACKEND_RATE_LIMIT_QUOTE_STREAM_MAX_REQUESTS:20}
+      window: ${BACKEND_RATE_LIMIT_QUOTE_STREAM_WINDOW:1m}
   demo-seed:
     enabled: ${DEMO_SEED_ENABLED:false}
     email: ${DEMO_USER_EMAIL:demo@example.com}

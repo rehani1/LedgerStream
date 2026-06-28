@@ -14,7 +14,7 @@ LedgerStream is a paper-trading system only. It must not place real brokerage or
 - User-scoped ownership checks for orders, positions, portfolio, ledger, and risk data. Implemented as reusable backend access-control helpers for future financial controllers.
 - Restricted CORS based on configured frontend origin.
 - Input validation for all public request bodies.
-- Rate limiting for authentication and order creation.
+- Rate limiting for authentication, order creation, and quote-stream subscription creation. Implemented with configurable fixed-window policies.
 - Audit events for security, financial, and admin replay-control actions.
 - Sanitized structured logs with request IDs.
 
@@ -46,6 +46,12 @@ Demo account seeding is disabled by default and only available under `local` or 
 The backend persists audit rows for registration, login success, safe login failure reasons, refresh-token rotation, logout, order creation, order cancellation, order rejection, and admin replay start or stop. Audit rows include the current request ID when the action originates from an HTTP request. Order rejection audits preserve the original order-submission request ID by carrying it on the internal `order.created` event.
 
 Audit metadata is limited to operational identifiers and state such as order ID, symbol, order side/type, quantity, and safe rejection reason. Passwords, access tokens, refresh tokens, API keys, and raw IP addresses are not stored in audit metadata. The application currently omits IP address collection rather than storing raw network identifiers.
+
+## Implemented Rate Limits
+
+The backend applies per-instance fixed-window limits before sensitive controller actions. Defaults are `5/min` for login, `3/10m` for registration, `60/min` for order creation, and `20/min` for quote stream creation. Exceeded limits return the standard API error shape with status `429` and retry headers.
+
+Limits can be changed with `BACKEND_RATE_LIMIT_*` environment variables, including `BACKEND_RATE_LIMIT_ENABLED`, per-policy `*_ENABLED`, `*_MAX_REQUESTS`, and `*_WINDOW` values. Authenticated limits use the user ID. Anonymous auth limits use a hashed client network hint; raw IP addresses are not stored in audit metadata or persisted by the limiter.
 
 ## Token Storage Tradeoff
 

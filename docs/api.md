@@ -52,6 +52,21 @@ Standard error response:
 
 Clients may send `X-Request-ID` with a safe ASCII value up to 128 characters. The backend echoes it in the `X-Request-ID` response header and includes it in standard API errors. If the header is absent or invalid, the backend generates a UUID request ID.
 
+## Rate Limits
+
+Sensitive endpoints use per-backend-instance fixed-window rate limits. Exceeded limits return `429 Too Many Requests` with the standard error shape plus `Retry-After`, `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` headers.
+
+Default backend limits:
+
+| Endpoint | Limit |
+| --- | --- |
+| `POST /api/auth/login` | 5 requests per minute per client |
+| `POST /api/auth/register` | 3 requests per 10 minutes per client |
+| `POST /api/orders` | 60 requests per minute per authenticated user |
+| `GET /api/stream/quotes` | 20 stream starts per minute per authenticated user |
+
+The limiter keys authenticated requests by user ID. Anonymous login and registration requests use a hashed client network hint and do not persist raw IP addresses.
+
 ## Authentication
 
 Implemented auth endpoints return this shape:
