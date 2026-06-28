@@ -12,7 +12,7 @@ Spring Boot and Micrometer provide JVM, process, HTTP server, datasource, and ex
 
 - `ledgerstream_market_ticks_consumed_total`: accepted `market.tick` events applied to PostgreSQL and Redis. Duplicate historical rows are skipped, but the latest quote cache is still refreshed and the event is counted as consumed.
 - `ledgerstream_market_ticks_failed_total`: malformed, unknown-symbol, or infrastructure-failed `market.tick` events.
-- `ledgerstream_orders_created_total`: newly accepted paper orders.
+- `ledgerstream_orders_total`: newly accepted paper orders.
 - `ledgerstream_orders_filled_total`: paper orders filled by the execution engine.
 - `ledgerstream_orders_rejected_total`: paper orders rejected by the execution engine.
 - `ledgerstream_quote_stream_clients`: active SSE quote stream clients on the current backend instance.
@@ -34,6 +34,24 @@ Spring Boot Actuator exposes `/actuator/health`. With Redis auto-configuration e
 
 The Compose Redis service also has a container health check based on `redis-cli ping`.
 
+## Local Observability Capture
+
+On June 28, 2026, the observability stack was run locally with an isolated Compose project and alternate host ports. The run generated traffic by replaying `workers/market-data/data/sample_ticks.csv`, registering a temporary user, reading quote and portfolio APIs, and submitting one AAPL market BUY order from an account with no cash. The order was accepted by the API and then rejected by the execution consumer with `Insufficient cash`.
+
+Prometheus scrape verification after the run:
+
+| Signal | Observed value |
+| --- | ---: |
+| `ledgerstream_market_ticks_consumed_total` | `25` |
+| `ledgerstream_market_ticks_failed_total` | `0` |
+| `ledgerstream_orders_total` | `1` |
+| `ledgerstream_orders_filled_total` | `0` |
+| `ledgerstream_orders_rejected_total` | `1` |
+| `ledgerstream_quote_cache_hits_total` | `5` |
+| `ledgerstream_quote_cache_misses_total` | `0` |
+
+These values are from a single local screenshot-generation run and are not performance claims.
+
 ## Grafana
 
 Grafana is provisioned from files under `infra/grafana/provisioning`:
@@ -42,7 +60,20 @@ Grafana is provisioned from files under `infra/grafana/provisioning`:
 - `dashboards/ledgerstream.yml` registers the dashboard provider.
 - `dashboards/ledgerstream-overview.json` defines the `LedgerStream Overview` dashboard.
 
-The overview dashboard includes panels for API request rate, API latency, API error rate, market ticks/sec, order created/filled/rejected counts, active stream clients, quote cache hit/miss behavior, portfolio calculation latency, JVM heap usage, and process CPU.
+The overview dashboard includes panels for:
+
+- API request rate.
+- API latency.
+- API error rate.
+- Market ticks/sec.
+- Order filled/rejected counts.
+- Quote cache hit/miss rate.
+- Active stream clients.
+- Quote cache hit ratio.
+- Portfolio calculation latency.
+- JVM heap used.
+- Process CPU.
+- Market tick throughput and failures.
 
 Run the local observability stack with:
 
@@ -52,7 +83,9 @@ docker compose up -d prometheus grafana backend
 
 Then open Grafana at `http://localhost:3000`, sign in with the local credentials from Compose, and open `Dashboards > LedgerStream > LedgerStream Overview`.
 
-Screenshot placeholder path: `docs/assets/observability/grafana-ledgerstream-overview.png`.
+Captured dashboard screenshot:
+
+![LedgerStream Grafana overview dashboard](assets/observability/grafana-ledgerstream-overview.png)
 
 ## Backend Logs
 
@@ -113,6 +146,88 @@ Example order lifecycle log:
 }
 ```
 
+Example failed-order lifecycle log:
+
+```json
+{
+  "@timestamp": "2026-06-28T22:46:23.831Z",
+  "level": "INFO",
+  "logger_name": "com.ledgerstream.orders.OrderExecutionService",
+  "message": "order_rejected reason=Insufficient cash",
+  "userId": "00000000-0000-0000-0000-000000000101",
+  "orderId": "00000000-0000-0000-0000-000000000301",
+  "symbol": "AAPL",
+  "eventType": "order.rejected"
+}
+```
+
+## Debugging A Failed Order
+
+1. Start with the API response or order history row and capture the `orderId`, status, and `rejectionReason`.
+2. Search backend logs by `orderId`:
+
+```bash
+docker compose logs backend | rg '<order-id>|order_rejected|order_created'
+```
+
+3. Confirm the order was accepted by the API:
+
+```bash
+docker compose logs backend | rg 'httpPath":"/api/orders"|order_created'
+```
+
+4. Check whether the execution consumer processed the corresponding `order.created` event:
+
+```bash
+docker compose exec redpanda rpk group describe ledgerstream-backend
+```
+
+5. If the reason is quote-related, inspect market tick ingestion and quote cache metrics:
+
+```bash
+curl -s http://localhost:8080/actuator/prometheus | rg 'ledgerstream_market_ticks|ledgerstream_quote_cache'
+```
+
+6. If the reason is cash or share related, inspect the user portfolio, positions, and ledger APIs with the same authenticated user. Missing or cross-user resources intentionally return `404`.
+
+Useful signals:
+
+- `ledgerstream_orders_rejected_total` increments after execution rejects an order.
+- `ledgerstream_market_ticks_consumed_total` should be greater than zero if replay has produced ticks.
+- `ledgerstream_quote_cache_hits_total` should increase when latest quotes are served from Redis.
+- `ledgerstream_quote_cache_misses_total` indicates PostgreSQL fallback or stale/missing cache state.
+
+## Inspecting Queue And Event Lag
+
+List topics:
+
+```bash
+docker compose exec redpanda rpk topic list
+```
+
+Expected local topics after replay/order traffic include `market.tick` and `order.created`; other topics are created when their publishers run.
+
+Inspect backend consumer group lag:
+
+```bash
+docker compose exec redpanda rpk group describe ledgerstream-backend
+```
+
+Example from the June 28, 2026 observability run:
+
+```text
+GROUP        ledgerstream-backend
+STATE        Stable
+TOTAL-LAG    0
+
+TOPIC          PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG
+market.tick    0          25              25              0
+order.created  0          1               1               0
+```
+
+When lag is non-zero, check backend consumer logs, Kafka connectivity settings, and malformed-event metrics. If `market.tick` lag grows, quotes and risk snapshots can go stale. If `order.created` lag grows, submitted orders can remain `PENDING` longer than expected.
+
 ## TODO
 
-- Add troubleshooting playbooks for failed orders, stream disconnects, and event ingestion failures.
+- Add a stream-disconnect troubleshooting playbook after SSE load testing is added.
+- Add dead-letter queue inspection steps after retry/DLQ support is implemented.

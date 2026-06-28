@@ -139,7 +139,9 @@ These are local baseline measurements, not production capacity claims. Details a
 
 The backend exposes `/actuator/health` and `/actuator/prometheus`. Custom metrics include market tick consumption/failures, order created/filled/rejected counts, quote stream clients/events/failures, quote cache hits/misses, and portfolio calculation latency.
 
-Grafana provisioning lives under `infra/grafana/provisioning` and includes the `LedgerStream Overview` dashboard. Screenshot placeholder: `docs/assets/observability/grafana-ledgerstream-overview.png`.
+Grafana provisioning lives under `infra/grafana/provisioning` and includes the `LedgerStream Overview` dashboard.
+
+![LedgerStream Grafana overview dashboard](docs/assets/observability/grafana-ledgerstream-overview.png)
 
 Observability guide: [Observability](docs/observability.md)
 
@@ -180,7 +182,7 @@ Security details: [Security](docs/security.md)
 - Rate limits are in-memory per backend instance; Redis-backed distributed limits are future work.
 - Limit orders can be accepted as pending, but matching is future work.
 - Refresh tokens are stored in browser `sessionStorage` for the MVP; HttpOnly cookies are the preferred production improvement.
-- Grafana screenshots and a 60-90 second demo video are placeholders until captured.
+- Product screenshots and a 60-90 second demo video are placeholders until captured.
 
 ## Local Setup
 

@@ -255,8 +255,8 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum({__name__=~\"ledgerstream_orders_created_total(_total)?\", job=\"$job\"})",
-          "legendFormat": "created",
+          "expr": "sum({__name__=~\"ledgerstream_orders_total(_total)?\", job=\"$job\"})",
+          "legendFormat": "accepted",
           "range": true,
           "refId": "A"
         },
