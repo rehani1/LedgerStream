@@ -11,6 +11,8 @@ public interface PositionRepository extends JpaRepository<Position, UUID> {
 
 	List<Position> findByUserId(UUID userId);
 
+	List<Position> findBySymbolTicker(String ticker);
+
 	Optional<Position> findByUserIdAndSymbolTicker(UUID userId, String ticker);
 
 	boolean existsByIdAndUserId(UUID id, UUID userId);

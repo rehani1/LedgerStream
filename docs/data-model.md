@@ -92,6 +92,18 @@ When a latest quote is unavailable for a position, the read model uses average c
 
 Ledger pages are zero-based and bounded to a maximum size of 100 entries to keep user-facing reads predictable.
 
+## Risk Snapshot Formulas
+
+`risk_snapshots` rows are generated after successful fills and after accepted market ticks for users with open positions in the ticked symbol. Each snapshot is point-in-time and append-only.
+
+- `cash`: current portfolio cash rounded to 2 decimal places.
+- `gross_exposure`: sum of absolute position market values, rounded to 2 decimal places.
+- `total_equity`: cash plus net position market value, rounded to 2 decimal places.
+- `largest_position_pct`: largest absolute position market value divided by total equity, multiplied by `100`, rounded to 4 decimal places. If total equity is zero or negative, the value is `0.0000`.
+- `unrealized_pnl`: sum of `(latest price - avg_cost) * quantity`, rounded to 2 decimal places.
+
+Risk valuation uses the latest quote `last` price when available. If no latest quote exists, the service uses average cost as a valuation fallback and contributes `0.00` unrealized P&L for that position.
+
 ## Append-Only Ledger
 
 `ledger_entries` is modeled as an immutable accounting journal. Normal application code inserts ledger rows through `PortfolioLedgerService`, which exposes append behavior only and is called from the fill settlement transaction. Normal portfolio flows must not update or delete ledger rows.

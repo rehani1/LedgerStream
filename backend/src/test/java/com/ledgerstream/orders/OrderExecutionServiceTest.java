@@ -34,6 +34,7 @@ import com.ledgerstream.events.OrderFilledEvent;
 import com.ledgerstream.portfolio.PortfolioLedgerService;
 import com.ledgerstream.quotes.QuoteQueryService;
 import com.ledgerstream.quotes.dto.QuoteResponse;
+import com.ledgerstream.risk.RiskCalculationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -68,6 +69,9 @@ class OrderExecutionServiceTest {
 	private PortfolioLedgerService portfolioLedgerService;
 
 	@Mock
+	private RiskCalculationService riskCalculationService;
+
+	@Mock
 	private EventPublisher eventPublisher;
 
 	private OrderExecutionService executionService;
@@ -83,6 +87,7 @@ class OrderExecutionServiceTest {
 			positionRepository,
 			quoteQueryService,
 			portfolioLedgerService,
+			riskCalculationService,
 			eventPublisher,
 			Clock.fixed(NOW, ZoneOffset.UTC)
 		);
@@ -133,6 +138,7 @@ class OrderExecutionServiceTest {
 			new BigDecimal("-1874.80"),
 			new BigDecimal("10.000000")
 		);
+		verify(riskCalculationService).recordSnapshot(USER_ID);
 
 		ArgumentCaptor<OrderFilledEvent> eventCaptor = ArgumentCaptor.forClass(OrderFilledEvent.class);
 		verify(eventPublisher).publishOrderFilled(eventCaptor.capture());
@@ -270,6 +276,7 @@ class OrderExecutionServiceTest {
 		assertThat(order.getRejectionReason()).isEqualTo("Insufficient cash");
 		verify(fillRepository, never()).save(any(Fill.class));
 		verify(portfolioLedgerService, never()).appendFill(any(), any(), any(), any());
+		verify(riskCalculationService, never()).recordSnapshot(any());
 		verify(eventPublisher, never()).publishOrderFilled(any(OrderFilledEvent.class));
 	}
 
@@ -291,6 +298,7 @@ class OrderExecutionServiceTest {
 		verify(fillRepository, never()).save(any(Fill.class));
 		verify(positionRepository, never()).save(any(Position.class));
 		verify(portfolioLedgerService, never()).appendFill(any(), any(), any(), any());
+		verify(riskCalculationService, never()).recordSnapshot(any());
 		verify(eventPublisher, never()).publishOrderFilled(any(OrderFilledEvent.class));
 	}
 
@@ -311,6 +319,7 @@ class OrderExecutionServiceTest {
 		assertThat(order.getRejectionReason()).isEqualTo("Insufficient shares");
 		verify(fillRepository, never()).save(any(Fill.class));
 		verify(portfolioLedgerService, never()).appendFill(any(), any(), any(), any());
+		verify(riskCalculationService, never()).recordSnapshot(any());
 		verify(eventPublisher, never()).publishOrderFilled(any(OrderFilledEvent.class));
 	}
 
@@ -327,6 +336,7 @@ class OrderExecutionServiceTest {
 		assertThat(order.getRejectionReason()).isEqualTo("No market quote available");
 		verify(fillRepository, never()).save(any(Fill.class));
 		verify(portfolioLedgerService, never()).appendFill(any(), any(), any(), any());
+		verify(riskCalculationService, never()).recordSnapshot(any());
 	}
 
 	@Test

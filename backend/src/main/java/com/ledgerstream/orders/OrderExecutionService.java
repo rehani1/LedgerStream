@@ -23,6 +23,7 @@ import com.ledgerstream.events.OrderFilledEvent;
 import com.ledgerstream.portfolio.PortfolioLedgerService;
 import com.ledgerstream.quotes.QuoteQueryService;
 import com.ledgerstream.quotes.dto.QuoteResponse;
+import com.ledgerstream.risk.RiskCalculationService;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,6 +47,7 @@ public class OrderExecutionService {
 	private final PositionRepository positionRepository;
 	private final QuoteQueryService quoteQueryService;
 	private final PortfolioLedgerService portfolioLedgerService;
+	private final RiskCalculationService riskCalculationService;
 	private final EventPublisher eventPublisher;
 	private final Clock clock;
 
@@ -56,6 +58,7 @@ public class OrderExecutionService {
 		PositionRepository positionRepository,
 		QuoteQueryService quoteQueryService,
 		PortfolioLedgerService portfolioLedgerService,
+		RiskCalculationService riskCalculationService,
 		EventPublisher eventPublisher,
 		Clock clock
 	) {
@@ -65,6 +68,7 @@ public class OrderExecutionService {
 		this.positionRepository = positionRepository;
 		this.quoteQueryService = quoteQueryService;
 		this.portfolioLedgerService = portfolioLedgerService;
+		this.riskCalculationService = riskCalculationService;
 		this.eventPublisher = eventPublisher;
 		this.clock = clock;
 	}
@@ -124,6 +128,7 @@ public class OrderExecutionService {
 		orderRepository.save(order);
 		Fill savedFill = fillRepository.save(fill);
 		applyPortfolioUpdate(portfolio, savedFill, sellPosition);
+		riskCalculationService.recordSnapshot(order.getUser().getId());
 		eventPublisher.publishOrderFilled(toOrderFilledEvent(savedFill));
 	}
 

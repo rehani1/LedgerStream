@@ -190,7 +190,7 @@ Portfolio settlement uses these rounding assumptions: cash, fees, and realized P
 
 Each filled market order also appends one ledger entry in the same transaction as the fill, cash update, and position update. BUY fill ledger rows record a negative cash delta and positive quantity delta. SELL fill ledger rows record a positive cash delta and negative quantity delta. The ledger row links the user, portfolio, order, fill, symbol, execution price, and metadata including side, order type, and fee.
 
-Current limitation: fills do not yet publish `portfolio.updated` or create risk snapshots. Those portfolio summary and analytics updates are the next domain layers.
+Filled orders now create risk snapshots and publish `risk.updated`. Portfolio summary events remain a follow-on layer.
 
 `POST /api/orders`
 
@@ -302,6 +302,19 @@ Position valuation uses the latest quote `last` price when available. If no late
 }
 ```
 
+## Risk
+
+Risk snapshots are calculated after successful fills and after accepted market ticks for users holding the ticked symbol. The backend persists snapshots in `risk_snapshots` and publishes `risk.updated`; REST endpoints for latest and historical risk reads are still the next API layer.
+
+Formula summary:
+
+- `totalEquity = cash + net position market value`
+- `grossExposure = sum(abs(position market value))`
+- `largestPositionPct = largest abs(position market value) / totalEquity * 100`
+- `unrealizedPnl = sum((latest price - avgCost) * quantity)`
+
+If a latest quote is unavailable, risk valuation falls back to average cost and uses zero unrealized P&L for that position. Cash, equity, exposure, and P&L use 2 decimal places with `HALF_UP`; concentration uses 4 decimal places.
+
 `GET /api/admin/queue-health` currently returns the configured event-topic contract. It does not claim live broker connectivity yet:
 
 ```json
@@ -392,7 +405,7 @@ LedgerStream uses JSON payloads on Kafka-compatible topics.
   "userId": "00000000-0000-0000-0000-000000000004",
   "totalEquity": 100000.00,
   "grossExposure": 1871.50,
-  "largestPositionPct": 0.0187,
+  "largestPositionPct": 1.8715,
   "unrealizedPnl": 0.00,
   "createdAt": "2026-01-01T14:30:04Z"
 }

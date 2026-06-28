@@ -13,6 +13,7 @@ import com.ledgerstream.quotes.CachedQuote;
 import com.ledgerstream.quotes.QuoteStreamService;
 import com.ledgerstream.quotes.RedisQuoteCacheService;
 import com.ledgerstream.quotes.dto.QuoteResponse;
+import com.ledgerstream.risk.RiskCalculationService;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.stereotype.Service;
@@ -25,6 +26,7 @@ public class MarketTickIngestionService {
 	private final PriceTickRepository priceTickRepository;
 	private final RedisQuoteCacheService quoteCacheService;
 	private final QuoteStreamService quoteStreamService;
+	private final RiskCalculationService riskCalculationService;
 	private final Counter consumedCounter;
 	private final Counter failedCounter;
 
@@ -33,12 +35,14 @@ public class MarketTickIngestionService {
 		PriceTickRepository priceTickRepository,
 		RedisQuoteCacheService quoteCacheService,
 		QuoteStreamService quoteStreamService,
+		RiskCalculationService riskCalculationService,
 		MeterRegistry meterRegistry
 	) {
 		this.symbolRepository = symbolRepository;
 		this.priceTickRepository = priceTickRepository;
 		this.quoteCacheService = quoteCacheService;
 		this.quoteStreamService = quoteStreamService;
+		this.riskCalculationService = riskCalculationService;
 		this.consumedCounter = Counter.builder("ledgerstream_market_ticks_consumed_total")
 			.description("Market tick events consumed and applied by the backend")
 			.register(meterRegistry);
@@ -69,6 +73,7 @@ public class MarketTickIngestionService {
 			);
 			quoteCacheService.putLatestQuote(cachedQuote);
 			quoteStreamService.broadcast(QuoteResponse.from(cachedQuote));
+			riskCalculationService.recordSnapshotsForSymbol(tick.symbol());
 			consumedCounter.increment();
 		} catch (MarketTickRejectedException ex) {
 			failedCounter.increment();
