@@ -1,5 +1,7 @@
 # LedgerStream
 
+[![CI](https://github.com/rehani1/LedgerStream/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/rehani1/LedgerStream/actions/workflows/ci.yml)
+
 Real-Time Paper Trading & Risk Platform
 
 LedgerStream is an event-driven paper-trading platform that will ingest deterministic or live market data, stream quotes to authenticated clients, process paper orders, maintain an append-only portfolio ledger, calculate risk and P&L, and expose production-style observability and deployment artifacts.
