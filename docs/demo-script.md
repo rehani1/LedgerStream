@@ -2,9 +2,39 @@
 
 ## Goal
 
-Show the full paper-trading path in 60 to 90 seconds once the MVP is implemented.
+Show the full paper-trading path in 60 to 90 seconds using either the public deployment or the local Docker Compose stack.
 
-## Planned Flow
+## Public Deployment
+
+Public links:
+
+- Frontend: <https://ledger-stream.vercel.app/>
+- Backend: <https://ledgerstream-backend-5rk9.onrender.com/>
+- Backend health: <https://ledgerstream-backend-5rk9.onrender.com/actuator/health>
+
+Before running a browser demo, verify the deployed frontend and backend are wired together:
+
+```bash
+curl -i https://ledgerstream-backend-5rk9.onrender.com/actuator/health
+curl -i -X OPTIONS https://ledgerstream-backend-5rk9.onrender.com/api/auth/register \
+  -H 'Origin: https://ledger-stream.vercel.app' \
+  -H 'Access-Control-Request-Method: POST' \
+  -H 'Access-Control-Request-Headers: content-type,authorization,idempotency-key'
+```
+
+Expected backend health is `UP`. Expected CORS behavior is an allow-origin response for `https://ledger-stream.vercel.app`.
+
+Provider prerequisites:
+
+- Vercel must build with `VITE_API_BASE_URL=https://ledgerstream-backend-5rk9.onrender.com`.
+- Render must set `BACKEND_CORS_ALLOWED_ORIGINS=https://ledger-stream.vercel.app`.
+- Render, Neon, Upstash, Redpanda, and Vercel secrets must remain in provider dashboards.
+- Redpanda Cloud topics must exist for `market.tick`, `order.created`, `order.filled`, `portfolio.updated`, `risk.updated`, and `audit.event`.
+- A market-data producer must publish ticks to Redpanda Cloud before quote and order-fill demos.
+
+As of the June 28, 2026 smoke test, the Render backend health endpoint was `UP`; direct backend registration, login, symbols, portfolio summary, positions, and ledger reads worked. Latest quote and risk endpoints returned `404` until market data and risk snapshots are produced. The public Vercel build still needed the final API base URL and Render CORS alignment before browser flows could be verified end to end.
+
+## Browser Flow
 
 1. Open the deployed or local frontend.
 2. Log in with a demo account.
@@ -17,12 +47,29 @@ Show the full paper-trading path in 60 to 90 seconds once the MVP is implemented
 9. Show risk metrics.
 10. Show Prometheus or Grafana observability.
 
-## TODO
+## Public API Smoke Flow
+
+Use this when validating the deployed backend before browser testing. Do not print or store returned tokens.
+
+1. Register a temporary demo-only user with `POST /api/auth/register`.
+2. Call `GET /api/me`.
+3. Call `GET /api/symbols`.
+4. Call `GET /api/portfolio`.
+5. Call `GET /api/portfolio/positions`.
+6. Call `GET /api/portfolio/ledger`.
+7. Call `GET /api/symbols/AAPL/quote`.
+8. Submit a small market order with a unique `Idempotency-Key`.
+9. Call `GET /api/orders`.
+10. Logout with `POST /api/auth/logout`.
+
+If quote data has not been replayed into Redpanda/PostgreSQL/Redis yet, `GET /api/symbols/AAPL/quote` can return `404`. If the hosted Kafka credentials are missing or not mapped to the backend's `BACKEND_KAFKA_*` environment variables, order submission can stall or fail because the backend cannot publish `order.created`.
+
+## Remaining Demo Assets
 
 - Add demo credentials only when safe and demo-only.
 - Add screenshot links.
 - Add video link or final narration.
-- Add fallback local demo commands.
+- Add a hosted market-data worker or a scripted operator command that publishes deterministic ticks to Redpanda Cloud.
 
 ## Local Demo Data
 
