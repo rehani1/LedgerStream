@@ -85,6 +85,12 @@ Implemented order endpoints:
 - `GET /api/orders/{id}`
 - `POST /api/orders/{id}/cancel`
 
+Implemented portfolio endpoints:
+
+- `GET /api/portfolio`
+- `GET /api/portfolio/positions`
+- `GET /api/portfolio/ledger?page=0&size=10`
+
 ### Market Data Worker
 
 The market-data worker validates deterministic CSV replay fixtures and can publish normalized `market.tick` events to Redpanda.
@@ -123,6 +129,8 @@ Set `VITE_API_BASE_URL` for local development or `FRONTEND_API_BASE_URL` when bu
 Frontend authentication is wired to the backend register, login, refresh, logout, and `/api/me` endpoints. Tokens are stored in browser `sessionStorage` for the MVP; see [Security](docs/security.md) for the tradeoff.
 
 The dashboard fetches supported symbols and latest quotes, opens the authenticated quote stream, and charts the selected symbol's intraday history with Recharts.
+
+The portfolio route renders cash, total equity, realized and unrealized P&L, open positions, and paginated append-only ledger entries from the backend portfolio APIs.
 
 ### Demo Data
 
