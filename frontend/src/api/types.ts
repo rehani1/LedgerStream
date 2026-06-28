@@ -129,3 +129,21 @@ export type CreateOrderRequest = {
   quantity: number;
   limitPrice?: number | null;
 };
+
+export type RiskSnapshot = {
+  id: string;
+  totalEquity: number;
+  cash: number;
+  grossExposure: number;
+  largestPositionPct: number;
+  unrealizedPnl: number;
+  createdAt: string;
+};
+
+export type RiskHistoryResponse = {
+  snapshots: RiskSnapshot[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+};

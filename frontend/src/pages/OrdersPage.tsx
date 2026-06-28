@@ -54,6 +54,8 @@ export function OrdersPage() {
     queryClient.invalidateQueries({ queryKey: ['portfolio-summary', userId] });
     queryClient.invalidateQueries({ queryKey: ['portfolio-positions', userId] });
     queryClient.invalidateQueries({ queryKey: ['portfolio-ledger', userId] });
+    queryClient.invalidateQueries({ queryKey: ['risk-latest', userId] });
+    queryClient.invalidateQueries({ queryKey: ['risk-history', userId] });
   }
 
   const createOrderMutation = useMutation({

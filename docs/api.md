@@ -26,8 +26,8 @@ The API surface below is the target contract. Endpoints will be marked as implem
 | Portfolio | `GET` | `/api/portfolio` | User | Implemented. Summary with cash, equity, and P&L. |
 | Portfolio | `GET` | `/api/portfolio/positions` | User | Implemented. Position list with quote-derived valuations. |
 | Portfolio | `GET` | `/api/portfolio/ledger?page=0&size=50` | User | Implemented. Paginated append-only ledger entries. |
-| Risk | `GET` | `/api/portfolio/risk` | User | Latest risk snapshot. |
-| Risk | `GET` | `/api/portfolio/risk/history` | User | Historical risk snapshots. |
+| Risk | `GET` | `/api/portfolio/risk` | User | Implemented. Latest risk snapshot. |
+| Risk | `GET` | `/api/portfolio/risk/history?page=0&size=50` | User | Implemented. Historical risk snapshots. |
 | Admin | `POST` | `/api/admin/market/replay/start` | Admin | Start deterministic replay control. |
 | Admin | `POST` | `/api/admin/market/replay/stop` | Admin | Stop deterministic replay control. |
 | Admin | `GET` | `/api/admin/queue-health` | Admin | Implemented. Returns current queue-health integration status. |
@@ -304,7 +304,7 @@ Position valuation uses the latest quote `last` price when available. If no late
 
 ## Risk
 
-Risk snapshots are calculated after successful fills and after accepted market ticks for users holding the ticked symbol. The backend persists snapshots in `risk_snapshots` and publishes `risk.updated`; REST endpoints for latest and historical risk reads are still the next API layer.
+Risk snapshots are calculated after successful fills and after accepted market ticks for users holding the ticked symbol. The backend persists snapshots in `risk_snapshots` and publishes `risk.updated`.
 
 Formula summary:
 
@@ -314,6 +314,42 @@ Formula summary:
 - `unrealizedPnl = sum((latest price - avgCost) * quantity)`
 
 If a latest quote is unavailable, risk valuation falls back to average cost and uses zero unrealized P&L for that position. Cash, equity, exposure, and P&L use 2 decimal places with `HALF_UP`; concentration uses 4 decimal places.
+
+`GET /api/portfolio/risk` returns the latest authenticated-user snapshot or `404` when no snapshot has been recorded yet:
+
+```json
+{
+  "id": "00000000-0000-0000-0000-000000000201",
+  "totalEquity": 101250.50,
+  "cash": 98500.00,
+  "grossExposure": 3250.75,
+  "largestPositionPct": 2.7400,
+  "unrealizedPnl": 250.50,
+  "createdAt": "2026-01-02T14:40:00Z"
+}
+```
+
+`GET /api/portfolio/risk/history?page=0&size=50` returns zero-based paginated snapshots. `size` must be between `1` and `100`.
+
+```json
+{
+  "snapshots": [
+    {
+      "id": "00000000-0000-0000-0000-000000000201",
+      "totalEquity": 101250.50,
+      "cash": 98500.00,
+      "grossExposure": 3250.75,
+      "largestPositionPct": 2.7400,
+      "unrealizedPnl": 250.50,
+      "createdAt": "2026-01-02T14:40:00Z"
+    }
+  ],
+  "page": 0,
+  "size": 50,
+  "totalElements": 1,
+  "totalPages": 1
+}
+```
 
 `GET /api/admin/queue-health` currently returns the configured event-topic contract. It does not claim live broker connectivity yet:
 

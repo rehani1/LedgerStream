@@ -91,6 +91,11 @@ Implemented portfolio endpoints:
 - `GET /api/portfolio/positions`
 - `GET /api/portfolio/ledger?page=0&size=10`
 
+Implemented risk endpoints:
+
+- `GET /api/portfolio/risk`
+- `GET /api/portfolio/risk/history?page=0&size=50`
+
 ### Market Data Worker
 
 The market-data worker validates deterministic CSV replay fixtures and can publish normalized `market.tick` events to Redpanda.
@@ -133,6 +138,8 @@ The dashboard fetches supported symbols and latest quotes, opens the authenticat
 The portfolio route renders cash, total equity, realized and unrealized P&L, open positions, and paginated append-only ledger entries from the backend portfolio APIs.
 
 The orders route includes a market order ticket with per-submission idempotency keys, double-submit protection, order status feedback, cancellation for pending orders, and a user-scoped order history table.
+
+The risk route renders latest total equity, cash, gross exposure, concentration, unrealized P&L, and a historical risk chart from the backend risk snapshot APIs.
 
 ### Demo Data
 

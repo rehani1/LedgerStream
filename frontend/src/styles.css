@@ -172,6 +172,10 @@ h2 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.risk-summary-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
 .summary-timestamp {
   align-self: end;
   color: #657167;
@@ -269,6 +273,13 @@ h2 {
 .dashboard-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(360px, 0.8fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.risk-dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.58fr) minmax(420px, 0.42fr);
   gap: 16px;
   align-items: start;
 }
@@ -639,12 +650,14 @@ th {
   }
 
   .portfolio-summary-grid,
+  .risk-summary-grid,
   .portfolio-detail-grid {
     grid-template-columns: 1fr;
   }
 
   .dashboard-heading,
   .dashboard-grid,
+  .risk-dashboard-grid,
   .order-workspace {
     grid-template-columns: 1fr;
   }
