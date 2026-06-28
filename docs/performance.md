@@ -30,6 +30,12 @@ Fast backend unit tests cover deterministic financial calculations and safety ch
 
 These tests do not produce throughput or latency claims; they are correctness guards for the later integration and load-test phases.
 
+## Integration Test Strategy
+
+Backend integration tests use Testcontainers with PostgreSQL and Redis to exercise the real Flyway schema, repositories, Redis quote cache, authentication registration, order creation, market fill execution, ledger writes, portfolio valuation, risk snapshots, duplicate idempotency handling, and user data isolation.
+
+The integration test class is marked with Testcontainers' Docker-disabled skip behavior so local and CI runs without a Docker daemon do not fail the whole suite. In that case, Maven reports the integration tests as skipped. Redpanda/Kafka publishing is mocked in this integration layer because the current backend flow can be verified deterministically by invoking the execution service directly after order creation; a broker-backed event-flow test remains a later expansion.
+
 ## TODO
 
 - Add k6 scripts.

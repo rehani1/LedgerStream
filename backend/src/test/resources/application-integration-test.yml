@@ -1,0 +1,15 @@
+spring:
+  flyway:
+    enabled: true
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+ledgerstream:
+  kafka:
+    connectivity-consumer-enabled: false
+    market-tick-consumer-enabled: false
+    order-created-consumer-enabled: false
+  rate-limit:
+    enabled: false

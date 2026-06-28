@@ -74,6 +74,8 @@ Open `http://localhost:3000` and use the Compose Grafana credentials: `admin` / 
 
 Backend unit tests cover the core financial invariants: fill settlement, average cost, realized P&L, rejection paths, idempotency, and risk concentration.
 
+Backend integration tests use Testcontainers for PostgreSQL and Redis. They verify registration, quote seeding, idempotent order creation, market fill settlement, positions, ledger entries, portfolio/risk views, and user data isolation. If Docker is not running, those tests are skipped by Testcontainers instead of failing the suite.
+
 Implemented auth endpoints:
 
 - `POST /api/auth/register`
