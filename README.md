@@ -191,14 +191,25 @@ docker compose down
 
 ### Load Tests
 
-k6 scripts live under `load-tests/k6/` for order creation and quote API load testing. They are parameterized with `BASE_URL`, `AUTH_TOKEN`, or `K6_EMAIL` and `K6_PASSWORD`.
+k6 scripts live under `load-tests/k6/` for order creation and quote API load testing. They are parameterized with `BASE_URL`, `AUTH_TOKEN`, or `LOAD_TEST_EMAIL` and `LOAD_TEST_PASSWORD`.
 
 ```bash
 k6 run load-tests/k6/order-create.js
 k6 run load-tests/k6/quote-api.js
 ```
 
-Install k6 before running these scripts. The performance docs keep p95 latency, request rate, and failure rate as TODO until tests are run against a documented environment.
+Install k6 before running these scripts. A local baseline measured on June 28, 2026 produced:
+
+| Metric | Result |
+| --- | ---: |
+| Order creation p95 latency | 82.52 ms |
+| Quote API p95 latency | 101.86 ms |
+| Order creation throughput | 0.96 requests/sec |
+| Quote API throughput | 4.84 requests/sec |
+| k6 API error rate | 0.00% |
+| Worker replay | 25 ticks consumed, 0 failed |
+
+These are low-load local Docker Compose results, not production capacity claims. See [Performance](docs/performance.md) for the environment, commands, and limitations.
 
 ### Demo Data
 
@@ -232,4 +243,4 @@ Demo account seeding is disabled by default. For local development only, set `DE
 
 ## Measurement Policy
 
-Latency, throughput, cache-hit rate, coverage, and other performance claims must be measured before they are documented. Until tests are implemented and run, performance documentation uses explicit placeholders rather than invented numbers.
+Latency, throughput, cache-hit rate, coverage, and other performance claims must be measured before they are documented. Performance results in this README are local baselines and should not be reused as production capacity claims.

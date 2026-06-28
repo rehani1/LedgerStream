@@ -8,10 +8,10 @@ export function getAuthToken() {
     return __ENV.AUTH_TOKEN;
   }
 
-  const email = __ENV.K6_EMAIL;
-  const password = __ENV.K6_PASSWORD;
+  const email = __ENV.LOAD_TEST_EMAIL || __ENV.K6_EMAIL;
+  const password = __ENV.LOAD_TEST_PASSWORD || __ENV.K6_PASSWORD;
   if (!email || !password) {
-    fail('Set AUTH_TOKEN or both K6_EMAIL and K6_PASSWORD before running k6.');
+    fail('Set AUTH_TOKEN or both LOAD_TEST_EMAIL and LOAD_TEST_PASSWORD before running k6.');
   }
 
   const response = http.post(

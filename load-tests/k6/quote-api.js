@@ -7,13 +7,14 @@ import { BASE_URL, authHeaders, getAuthToken } from './lib/auth.js';
 const quoteApiDuration = new Trend('ledgerstream_quote_api_duration', true);
 const quoteApiFailures = new Rate('ledgerstream_quote_api_failures');
 
-const vus = Number(__ENV.K6_VUS || 5);
-const duration = __ENV.K6_DURATION || '30s';
-const symbols = (__ENV.K6_SYMBOLS || 'AAPL,MSFT,NVDA,TSLA,SPY')
+const vus = Number(__ENV.LEDGERSTREAM_VUS || __ENV.K6_VUS || 5);
+const duration = __ENV.LEDGERSTREAM_DURATION || __ENV.K6_DURATION || '30s';
+const symbols = (__ENV.LEDGERSTREAM_SYMBOLS || __ENV.K6_SYMBOLS || 'AAPL,MSFT,NVDA,TSLA,SPY')
   .split(',')
   .map((symbol) => symbol.trim().toUpperCase())
   .filter(Boolean);
-const sleepSeconds = Number(__ENV.K6_SLEEP_SECONDS || 1);
+const sleepSeconds = Number(__ENV.LEDGERSTREAM_SLEEP_SECONDS || __ENV.K6_SLEEP_SECONDS || 1);
+let token;
 
 export const options = {
   scenarios: {
@@ -30,20 +31,14 @@ export const options = {
   }
 };
 
-export function setup() {
-  if (symbols.length === 0) {
-    throw new Error('K6_SYMBOLS must include at least one ticker.');
-  }
-
-  return {
-    token: getAuthToken()
-  };
+if (symbols.length === 0) {
+  throw new Error('LEDGERSTREAM_SYMBOLS must include at least one ticker.');
 }
 
-export default function (data) {
+export default function () {
   const symbol = symbols[__ITER % symbols.length];
   const response = http.get(`${BASE_URL}/api/symbols/${encodeURIComponent(symbol)}/quote`, {
-    headers: authHeaders(data.token),
+    headers: authHeaders(currentAuthToken()),
     tags: {
       endpoint: 'quote-api',
       symbol
@@ -58,6 +53,13 @@ export default function (data) {
   quoteApiFailures.add(!ok);
 
   sleep(sleepSeconds);
+}
+
+function currentAuthToken() {
+  if (!token) {
+    token = getAuthToken();
+  }
+  return token;
 }
 
 function hasJsonField(response, field) {

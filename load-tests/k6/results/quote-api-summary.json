@@ -1,0 +1,160 @@
+{
+    "metrics": {
+        "http_reqs{endpoint:quote-api}": {
+            "count": 150,
+            "rate": 4.837352721959027,
+            "thresholds": {
+                "rate>1": false
+            }
+        },
+        "http_req_failed": {
+            "passes": 0,
+            "fails": 150,
+            "value": 0
+        },
+        "http_req_tls_handshaking": {
+            "p(90)": 0,
+            "p(95)": 0,
+            "avg": 0,
+            "min": 0,
+            "med": 0,
+            "max": 0
+        },
+        "http_req_sending": {
+            "med": 0.027,
+            "max": 0.581,
+            "p(90)": 0.073,
+            "p(95)": 0.14279999999999976,
+            "avg": 0.05219333333333329,
+            "min": 0.005
+        },
+        "checks": {
+            "passes": 300,
+            "fails": 0,
+            "value": 1
+        },
+        "vus_max": {
+            "max": 5,
+            "value": 5,
+            "min": 5
+        },
+        "iteration_duration": {
+            "avg": 1033.5462622333325,
+            "min": 1011.489708,
+            "med": 1022.528146,
+            "max": 1116.238666,
+            "p(90)": 1063.0822872,
+            "p(95)": 1103.72770655
+        },
+        "data_sent": {
+            "count": 66420,
+            "rate": 2141.979785283457
+        },
+        "ledgerstream_quote_api_failures": {
+            "passes": 0,
+            "fails": 150,
+            "thresholds": {
+                "rate<0.01": false
+            },
+            "value": 0
+        },
+        "http_req_waiting": {
+            "avg": 31.30088666666666,
+            "min": 9.864,
+            "med": 20.673000000000002,
+            "max": 111.348,
+            "p(90)": 61.04270000000012,
+            "p(95)": 99.5898
+        },
+        "iterations": {
+            "count": 150,
+            "rate": 4.837352721959027
+        },
+        "http_reqs": {
+            "count": 150,
+            "rate": 4.837352721959027
+        },
+        "http_req_duration{expected_response:true}": {
+            "avg": 32.12833333333333,
+            "min": 10.227,
+            "med": 21.381,
+            "max": 112.825,
+            "p(90)": 62.212900000000126,
+            "p(95)": 101.86
+        },
+        "http_req_connecting": {
+            "avg": 0.009713333333333334,
+            "min": 0,
+            "med": 0,
+            "max": 0.321,
+            "p(90)": 0,
+            "p(95)": 0
+        },
+        "http_req_receiving": {
+            "avg": 0.7752533333333335,
+            "min": 0.012,
+            "med": 0.6955,
+            "max": 3.238,
+            "p(90)": 1.7415000000000003,
+            "p(95)": 2.10775
+        },
+        "vus": {
+            "max": 5,
+            "value": 5,
+            "min": 5
+        },
+        "ledgerstream_quote_api_duration": {
+            "p(90)": 62.212900000000126,
+            "p(95)": 101.86,
+            "avg": 32.12833333333333,
+            "min": 10.227,
+            "med": 21.381,
+            "max": 112.825,
+            "thresholds": {
+                "p(95)<300": false
+            }
+        },
+        "http_req_duration": {
+            "max": 112.825,
+            "p(90)": 62.212900000000126,
+            "p(95)": 101.86,
+            "avg": 32.12833333333333,
+            "min": 10.227,
+            "med": 21.381
+        },
+        "http_req_blocked": {
+            "avg": 0.14592666666666682,
+            "min": 0.001,
+            "med": 0.009,
+            "max": 4.099,
+            "p(90)": 0.0181,
+            "p(95)": 0.04119999999999997
+        },
+        "data_received": {
+            "count": 86220,
+            "rate": 2780.5103445820487
+        }
+    },
+    "root_group": {
+        "path": "",
+        "id": "d41d8cd98f00b204e9800998ecf8427e",
+        "groups": {},
+        "checks": {
+                "quote returned successfully": {
+                    "fails": 0,
+                    "name": "quote returned successfully",
+                    "path": "::quote returned successfully",
+                    "id": "e425a94915b63f6d0fac729bba41317a",
+                    "passes": 150
+                },
+                "quote response includes last price": {
+                    "name": "quote response includes last price",
+                    "path": "::quote response includes last price",
+                    "id": "09ee62e512bd149078f37a9b26391d00",
+                    "passes": 150,
+                    "fails": 0
+                }
+            },
+        "name": ""
+    }
+}

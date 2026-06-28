@@ -27,12 +27,12 @@ export BASE_URL=http://localhost:8080
 export AUTH_TOKEN=<access-token>
 ```
 
-Or let the scripts log in during `setup()`:
+Or let the scripts log in lazily per VU:
 
 ```bash
 export BASE_URL=http://localhost:8080
-export K6_EMAIL=loadtest@example.com
-export K6_PASSWORD=Password123!
+export LOAD_TEST_EMAIL=loadtest@example.com
+export LOAD_TEST_PASSWORD=Password123!
 ```
 
 To create a token manually:
@@ -43,7 +43,7 @@ curl -sS -X POST "$BASE_URL/api/auth/login" \
   -d '{"email":"loadtest@example.com","password":"Password123!"}'
 ```
 
-Copy only the returned `accessToken` into `AUTH_TOKEN`. Do not commit tokens or command output containing tokens.
+Copy only the returned `accessToken` into `AUTH_TOKEN`. Do not commit tokens or command output containing tokens. The scripts do not return tokens from k6 `setup()`, so `--summary-export` files should not include `setup_data`; still check generated summaries before committing them.
 
 ## Order Creation
 
@@ -54,7 +54,7 @@ k6 run load-tests/k6/order-create.js
 Useful parameters:
 
 ```bash
-K6_VUS=1 K6_DURATION=30s K6_SYMBOL=AAPL K6_ORDER_QUANTITY=1 k6 run load-tests/k6/order-create.js
+LEDGERSTREAM_VUS=1 LEDGERSTREAM_DURATION=30s LEDGERSTREAM_SYMBOL=AAPL LEDGERSTREAM_ORDER_QUANTITY=1 k6 run load-tests/k6/order-create.js
 ```
 
 The default order test uses one VU and a one-second sleep so it stays below the backend's default per-user order rate limit. Increase load only after adjusting rate limits or using multiple test users.
@@ -74,7 +74,7 @@ k6 run load-tests/k6/quote-api.js
 Useful parameters:
 
 ```bash
-K6_VUS=5 K6_DURATION=30s K6_SYMBOLS=AAPL,MSFT,NVDA,TSLA,SPY k6 run load-tests/k6/quote-api.js
+LEDGERSTREAM_VUS=5 LEDGERSTREAM_DURATION=30s LEDGERSTREAM_SYMBOLS=AAPL,MSFT,NVDA,TSLA,SPY k6 run load-tests/k6/quote-api.js
 ```
 
 Target metrics:

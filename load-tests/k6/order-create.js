@@ -7,12 +7,13 @@ import { BASE_URL, authHeaders, getAuthToken } from './lib/auth.js';
 const orderCreateDuration = new Trend('ledgerstream_order_create_duration', true);
 const orderCreateFailures = new Rate('ledgerstream_order_create_failures');
 
-const vus = Number(__ENV.K6_VUS || 1);
-const duration = __ENV.K6_DURATION || '30s';
-const symbol = __ENV.K6_SYMBOL || 'AAPL';
-const side = __ENV.K6_SIDE || 'BUY';
-const quantity = Number(__ENV.K6_ORDER_QUANTITY || 1);
-const sleepSeconds = Number(__ENV.K6_SLEEP_SECONDS || 1);
+const vus = Number(__ENV.LEDGERSTREAM_VUS || __ENV.K6_VUS || 1);
+const duration = __ENV.LEDGERSTREAM_DURATION || __ENV.K6_DURATION || '30s';
+const symbol = __ENV.LEDGERSTREAM_SYMBOL || __ENV.K6_SYMBOL || 'AAPL';
+const side = __ENV.LEDGERSTREAM_SIDE || __ENV.K6_SIDE || 'BUY';
+const quantity = Number(__ENV.LEDGERSTREAM_ORDER_QUANTITY || __ENV.K6_ORDER_QUANTITY || 1);
+const sleepSeconds = Number(__ENV.LEDGERSTREAM_SLEEP_SECONDS || __ENV.K6_SLEEP_SECONDS || 1);
+let token;
 
 export const options = {
   scenarios: {
@@ -29,13 +30,7 @@ export const options = {
   }
 };
 
-export function setup() {
-  return {
-    token: getAuthToken()
-  };
-}
-
-export default function (data) {
+export default function () {
   const payload = {
     symbol,
     side,
@@ -43,7 +38,7 @@ export default function (data) {
     quantity
   };
   const response = http.post(`${BASE_URL}/api/orders`, JSON.stringify(payload), {
-    headers: authHeaders(data.token, {
+    headers: authHeaders(currentAuthToken(), {
       'Idempotency-Key': makeIdempotencyKey()
     }),
     tags: {
@@ -63,6 +58,13 @@ export default function (data) {
 
 function makeIdempotencyKey() {
   return `k6-order-${__VU}-${__ITER}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function currentAuthToken() {
+  if (!token) {
+    token = getAuthToken();
+  }
+  return token;
 }
 
 function hasJsonField(response, field) {
