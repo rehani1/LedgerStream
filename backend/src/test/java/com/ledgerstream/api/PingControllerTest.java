@@ -1,12 +1,15 @@
 package com.ledgerstream.api;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.ledgerstream.web.RequestIdFilter;
+import org.springframework.boot.test.autoconfigure.actuate.observability.AutoConfigureObservability;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -17,6 +20,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @ActiveProfiles("test")
 @SpringBootTest
 @AutoConfigureMockMvc
+@AutoConfigureObservability
 class PingControllerTest {
 
 	@Autowired
@@ -37,5 +41,12 @@ class PingControllerTest {
 		mockMvc.perform(get("/actuator/health"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.status").value("UP"));
+	}
+
+	@Test
+	void prometheusEndpointIsPublic() throws Exception {
+		mockMvc.perform(get("/actuator/prometheus"))
+			.andExpect(status().isOk())
+			.andExpect(content().string(containsString("# HELP")));
 	}
 }

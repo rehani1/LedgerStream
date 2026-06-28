@@ -62,6 +62,8 @@ The backend consumes `market.tick` events, persists historical ticks to PostgreS
 
 Market order execution consumes `order.created`, creates fills, settles portfolio cash and positions, and appends immutable ledger entries in one transaction. BUY fills record negative cash and positive quantity deltas; SELL fills record positive cash and negative quantity deltas.
 
+Operational metrics are exposed at `GET /actuator/prometheus`. Custom metrics cover market tick ingestion, order creation/fill/rejection counts, active quote stream clients, quote cache hits and misses, and portfolio valuation latency.
+
 Implemented auth endpoints:
 
 - `POST /api/auth/register`

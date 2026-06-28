@@ -32,8 +32,10 @@ import com.ledgerstream.domain.repository.SymbolRepository;
 import com.ledgerstream.domain.repository.UserRepository;
 import com.ledgerstream.events.EventPublisher;
 import com.ledgerstream.events.OrderCreatedEvent;
+import com.ledgerstream.metrics.LedgerStreamMetrics;
 import com.ledgerstream.orders.dto.CreateOrderRequest;
 import com.ledgerstream.orders.dto.OrderResponse;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -66,18 +68,21 @@ class OrderServiceTest {
 	private AuditService auditService;
 
 	private OrderService orderService;
+	private SimpleMeterRegistry meterRegistry;
 	private AuthenticatedUser authenticatedUser;
 	private User user;
 	private Symbol symbol;
 
 	@BeforeEach
 	void setUp() {
+		meterRegistry = new SimpleMeterRegistry();
 		orderService = new OrderService(
 			userRepository,
 			symbolRepository,
 			orderRepository,
 			eventPublisher,
 			auditService,
+			new LedgerStreamMetrics(meterRegistry),
 			Clock.fixed(NOW, ZoneOffset.UTC)
 		);
 		authenticatedUser = new AuthenticatedUser(USER_ID, "user@example.com", UserRole.USER);
@@ -142,6 +147,7 @@ class OrderServiceTest {
 		assertThat(response.status()).isEqualTo(OrderStatus.PENDING);
 		assertThat(response.createdAt()).isEqualTo(NOW);
 		assertThat(result.created()).isTrue();
+		assertThat(counter(LedgerStreamMetrics.ORDERS_CREATED)).isEqualTo(1.0);
 	}
 
 	@Test
@@ -161,6 +167,7 @@ class OrderServiceTest {
 		verify(userRepository, never()).findById(any(UUID.class));
 		verify(eventPublisher, never()).publishOrderCreated(any(OrderCreatedEvent.class));
 		verify(auditService, never()).record(any(), any(), any(), any());
+		assertThat(counter(LedgerStreamMetrics.ORDERS_CREATED)).isZero();
 	}
 
 	@Test
@@ -338,5 +345,9 @@ class OrderServiceTest {
 		testSymbol.setCurrency("USD");
 		testSymbol.setActive(active);
 		return testSymbol;
+	}
+
+	private double counter(String name) {
+		return meterRegistry.get(name).counter().count();
 	}
 }

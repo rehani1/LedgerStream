@@ -21,9 +21,11 @@ import com.ledgerstream.domain.model.PriceTick;
 import com.ledgerstream.domain.model.Symbol;
 import com.ledgerstream.domain.repository.PriceTickRepository;
 import com.ledgerstream.domain.repository.SymbolRepository;
+import com.ledgerstream.metrics.LedgerStreamMetrics;
 import com.ledgerstream.quotes.dto.QuoteHistoryResponse;
 import com.ledgerstream.quotes.dto.QuoteResponse;
 import com.ledgerstream.quotes.dto.SymbolResponse;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -49,13 +51,16 @@ class QuoteQueryServiceTest {
 	private RedisQuoteCacheService quoteCacheService;
 
 	private QuoteQueryService quoteQueryService;
+	private SimpleMeterRegistry meterRegistry;
 
 	@BeforeEach
 	void setUp() {
+		meterRegistry = new SimpleMeterRegistry();
 		quoteQueryService = new QuoteQueryService(
 			symbolRepository,
 			priceTickRepository,
 			quoteCacheService,
+			new LedgerStreamMetrics(meterRegistry),
 			Clock.fixed(NOW, ZoneOffset.UTC)
 		);
 	}
@@ -85,6 +90,8 @@ class QuoteQueryServiceTest {
 		assertThat(quote.timestamp()).isEqualTo(TICK_TS);
 		assertThat(quote.last()).isEqualByComparingTo("187.420000");
 		verify(priceTickRepository, never()).findFirstBySymbolTickerOrderByTsDesc(any());
+		assertThat(counter(LedgerStreamMetrics.QUOTE_CACHE_HITS)).isEqualTo(1.0);
+		assertThat(counter(LedgerStreamMetrics.QUOTE_CACHE_MISSES)).isZero();
 	}
 
 	@Test
@@ -100,6 +107,8 @@ class QuoteQueryServiceTest {
 		assertThat(quote.symbol()).isEqualTo("MSFT");
 		assertThat(quote.source()).isEqualTo("fixture");
 		assertThat(quote.last()).isEqualByComparingTo("187.420000");
+		assertThat(counter(LedgerStreamMetrics.QUOTE_CACHE_HITS)).isZero();
+		assertThat(counter(LedgerStreamMetrics.QUOTE_CACHE_MISSES)).isEqualTo(1.0);
 	}
 
 	@Test
@@ -114,6 +123,7 @@ class QuoteQueryServiceTest {
 
 		assertThat(quote.symbol()).isEqualTo("NVDA");
 		assertThat(quote.timestamp()).isEqualTo(TICK_TS);
+		assertThat(counter(LedgerStreamMetrics.QUOTE_CACHE_MISSES)).isEqualTo(1.0);
 	}
 
 	@Test
@@ -199,5 +209,9 @@ class QuoteQueryServiceTest {
 		symbol.setCurrency("USD");
 		symbol.setActive(true);
 		return symbol;
+	}
+
+	private double counter(String name) {
+		return meterRegistry.get(name).counter().count();
 	}
 }

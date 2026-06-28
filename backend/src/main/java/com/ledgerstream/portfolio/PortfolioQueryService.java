@@ -12,6 +12,7 @@ import com.ledgerstream.domain.model.Position;
 import com.ledgerstream.domain.repository.LedgerEntryRepository;
 import com.ledgerstream.domain.repository.PortfolioRepository;
 import com.ledgerstream.domain.repository.PositionRepository;
+import com.ledgerstream.metrics.LedgerStreamMetrics;
 import com.ledgerstream.portfolio.dto.LedgerEntryResponse;
 import com.ledgerstream.portfolio.dto.LedgerPageResponse;
 import com.ledgerstream.portfolio.dto.PortfolioPositionResponse;
@@ -38,21 +39,51 @@ public class PortfolioQueryService {
 	private final PositionRepository positionRepository;
 	private final LedgerEntryRepository ledgerEntryRepository;
 	private final QuoteQueryService quoteQueryService;
+	private final LedgerStreamMetrics metrics;
 
 	public PortfolioQueryService(
 		PortfolioRepository portfolioRepository,
 		PositionRepository positionRepository,
 		LedgerEntryRepository ledgerEntryRepository,
-		QuoteQueryService quoteQueryService
+		QuoteQueryService quoteQueryService,
+		LedgerStreamMetrics metrics
 	) {
 		this.portfolioRepository = portfolioRepository;
 		this.positionRepository = positionRepository;
 		this.ledgerEntryRepository = ledgerEntryRepository;
 		this.quoteQueryService = quoteQueryService;
+		this.metrics = metrics;
 	}
 
 	@Transactional(readOnly = true)
 	public PortfolioSummaryResponse getPortfolio(AuthenticatedUser authenticatedUser) {
+		return metrics.recordPortfolioCalculation(() -> calculatePortfolio(authenticatedUser));
+	}
+
+	@Transactional(readOnly = true)
+	public List<PortfolioPositionResponse> listPositions(AuthenticatedUser authenticatedUser) {
+		return metrics.recordPortfolioCalculation(() -> calculatePositions(authenticatedUser));
+	}
+
+	@Transactional(readOnly = true)
+	public LedgerPageResponse listLedger(AuthenticatedUser authenticatedUser, int page, int size) {
+		requirePortfolio(authenticatedUser);
+		int normalizedPage = normalizePage(page);
+		int normalizedSize = normalizeSize(size);
+		Page<LedgerEntry> ledgerPage = ledgerEntryRepository.findByUserIdOrderByCreatedAtDesc(
+			authenticatedUser.id(),
+			PageRequest.of(normalizedPage, normalizedSize)
+		);
+		return new LedgerPageResponse(
+			ledgerPage.getContent().stream().map(LedgerEntryResponse::from).toList(),
+			normalizedPage,
+			normalizedSize,
+			ledgerPage.getTotalElements(),
+			ledgerPage.getTotalPages()
+		);
+	}
+
+	private PortfolioSummaryResponse calculatePortfolio(AuthenticatedUser authenticatedUser) {
 		Portfolio portfolio = requirePortfolio(authenticatedUser);
 		List<PortfolioPositionResponse> positions = listPositionResponses(authenticatedUser);
 		BigDecimal marketValue = sum(positions.stream().map(PortfolioPositionResponse::marketValue).toList());
@@ -76,28 +107,9 @@ public class PortfolioQueryService {
 		);
 	}
 
-	@Transactional(readOnly = true)
-	public List<PortfolioPositionResponse> listPositions(AuthenticatedUser authenticatedUser) {
+	private List<PortfolioPositionResponse> calculatePositions(AuthenticatedUser authenticatedUser) {
 		requirePortfolio(authenticatedUser);
 		return listPositionResponses(authenticatedUser);
-	}
-
-	@Transactional(readOnly = true)
-	public LedgerPageResponse listLedger(AuthenticatedUser authenticatedUser, int page, int size) {
-		requirePortfolio(authenticatedUser);
-		int normalizedPage = normalizePage(page);
-		int normalizedSize = normalizeSize(size);
-		Page<LedgerEntry> ledgerPage = ledgerEntryRepository.findByUserIdOrderByCreatedAtDesc(
-			authenticatedUser.id(),
-			PageRequest.of(normalizedPage, normalizedSize)
-		);
-		return new LedgerPageResponse(
-			ledgerPage.getContent().stream().map(LedgerEntryResponse::from).toList(),
-			normalizedPage,
-			normalizedSize,
-			ledgerPage.getTotalElements(),
-			ledgerPage.getTotalPages()
-		);
 	}
 
 	private Portfolio requirePortfolio(AuthenticatedUser authenticatedUser) {

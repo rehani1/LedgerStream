@@ -29,11 +29,13 @@ import com.ledgerstream.domain.model.UserRole;
 import com.ledgerstream.domain.repository.LedgerEntryRepository;
 import com.ledgerstream.domain.repository.PortfolioRepository;
 import com.ledgerstream.domain.repository.PositionRepository;
+import com.ledgerstream.metrics.LedgerStreamMetrics;
 import com.ledgerstream.portfolio.dto.LedgerPageResponse;
 import com.ledgerstream.portfolio.dto.PortfolioPositionResponse;
 import com.ledgerstream.portfolio.dto.PortfolioSummaryResponse;
 import com.ledgerstream.quotes.QuoteQueryService;
 import com.ledgerstream.quotes.dto.QuoteResponse;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -63,6 +65,7 @@ class PortfolioQueryServiceTest {
 	private QuoteQueryService quoteQueryService;
 
 	private PortfolioQueryService portfolioQueryService;
+	private SimpleMeterRegistry meterRegistry;
 	private AuthenticatedUser authenticatedUser;
 	private User user;
 	private Symbol symbol;
@@ -70,11 +73,13 @@ class PortfolioQueryServiceTest {
 
 	@BeforeEach
 	void setUp() {
+		meterRegistry = new SimpleMeterRegistry();
 		portfolioQueryService = new PortfolioQueryService(
 			portfolioRepository,
 			positionRepository,
 			ledgerEntryRepository,
-			quoteQueryService
+			quoteQueryService,
+			new LedgerStreamMetrics(meterRegistry)
 		);
 		authenticatedUser = new AuthenticatedUser(USER_ID, "user@example.com", UserRole.USER);
 		user = user();
@@ -100,6 +105,7 @@ class PortfolioQueryServiceTest {
 		assertThat(response.pricedPositionsCount()).isEqualTo(1);
 		verify(portfolioRepository).findByUserId(USER_ID);
 		verify(positionRepository).findByUserId(USER_ID);
+		assertThat(portfolioCalculationCount()).isEqualTo(1);
 	}
 
 	@Test
@@ -121,6 +127,7 @@ class PortfolioQueryServiceTest {
 		assertThat(positionResponse.costBasis()).isEqualByComparingTo("500.00");
 		assertThat(positionResponse.unrealizedPnl()).isEqualByComparingTo("0.00");
 		assertThat(positionResponse.realizedPnl()).isEqualByComparingTo("12.34");
+		assertThat(portfolioCalculationCount()).isEqualTo(1);
 	}
 
 	@Test
@@ -243,5 +250,9 @@ class PortfolioQueryServiceTest {
 		testSymbol.setCurrency("USD");
 		testSymbol.setActive(true);
 		return testSymbol;
+	}
+
+	private long portfolioCalculationCount() {
+		return meterRegistry.get(LedgerStreamMetrics.PORTFOLIO_CALCULATION_LATENCY).timer().count();
 	}
 }

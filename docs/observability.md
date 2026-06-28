@@ -4,24 +4,29 @@
 
 LedgerStream should be inspectable through health checks, structured logs, Prometheus metrics, and Grafana dashboards.
 
-## Planned Metrics
-
-- API request rate, latency, and error count.
-- Orders created, filled, rejected, and cancelled.
-- Active quote stream clients.
-- Quote cache hits and misses.
-- Portfolio and risk calculation latency.
-- JVM runtime metrics.
-
 ## Implemented Metrics
 
-The backend records market ingestion counters:
+The backend exposes Prometheus metrics at `/actuator/prometheus`. The local Prometheus service scrapes `backend:8080/actuator/prometheus` through `infra/prometheus/prometheus.yml`.
+
+Spring Boot and Micrometer provide JVM, process, HTTP server, datasource, and executor metrics. LedgerStream adds custom operational and business metrics:
 
 - `ledgerstream_market_ticks_consumed_total`: accepted `market.tick` events applied to PostgreSQL and Redis. Duplicate historical rows are skipped, but the latest quote cache is still refreshed and the event is counted as consumed.
 - `ledgerstream_market_ticks_failed_total`: malformed, unknown-symbol, or infrastructure-failed `market.tick` events.
+- `ledgerstream_orders_created_total`: newly accepted paper orders.
+- `ledgerstream_orders_filled_total`: paper orders filled by the execution engine.
+- `ledgerstream_orders_rejected_total`: paper orders rejected by the execution engine.
 - `ledgerstream_quote_stream_clients`: active SSE quote stream clients on the current backend instance.
 - `ledgerstream_quote_stream_events_total`: quote SSE events sent by the backend.
 - `ledgerstream_quote_stream_send_failures_total`: quote SSE send failures that caused the backend to close a stream.
+- `ledgerstream_quote_cache_hits_total`: latest quote reads served from Redis.
+- `ledgerstream_quote_cache_misses_total`: latest quote reads that fell back to PostgreSQL because Redis missed or was unavailable.
+- `ledgerstream_portfolio_calculation_latency`: timer for portfolio summary and position valuation calculations. Prometheus exports timer series such as `_seconds_count`, `_seconds_sum`, and `_seconds_max`.
+
+Planned custom metrics:
+
+- Orders cancelled.
+- Risk calculation latency.
+- API-level business error counts by endpoint and reason.
 
 ## Health Checks
 

@@ -12,6 +12,7 @@ import com.ledgerstream.domain.model.PriceTick;
 import com.ledgerstream.domain.model.Symbol;
 import com.ledgerstream.domain.repository.PriceTickRepository;
 import com.ledgerstream.domain.repository.SymbolRepository;
+import com.ledgerstream.metrics.LedgerStreamMetrics;
 import com.ledgerstream.quotes.dto.QuoteHistoryResponse;
 import com.ledgerstream.quotes.dto.QuoteResponse;
 import com.ledgerstream.quotes.dto.SymbolResponse;
@@ -39,17 +40,20 @@ public class QuoteQueryService {
 	private final SymbolRepository symbolRepository;
 	private final PriceTickRepository priceTickRepository;
 	private final RedisQuoteCacheService quoteCacheService;
+	private final LedgerStreamMetrics metrics;
 	private final Clock clock;
 
 	public QuoteQueryService(
 		SymbolRepository symbolRepository,
 		PriceTickRepository priceTickRepository,
 		RedisQuoteCacheService quoteCacheService,
+		LedgerStreamMetrics metrics,
 		Clock clock
 	) {
 		this.symbolRepository = symbolRepository;
 		this.priceTickRepository = priceTickRepository;
 		this.quoteCacheService = quoteCacheService;
+		this.metrics = metrics;
 		this.clock = clock;
 	}
 
@@ -72,8 +76,10 @@ public class QuoteQueryService {
 
 		Optional<CachedQuote> cachedQuote = latestQuoteFromCache(normalizedTicker);
 		if (cachedQuote.isPresent()) {
+			metrics.recordQuoteCacheHit();
 			return QuoteResponse.from(cachedQuote.get());
 		}
+		metrics.recordQuoteCacheMiss();
 
 		return priceTickRepository.findFirstBySymbolTickerOrderByTsDesc(normalizedTicker)
 			.map(QuoteResponse::from)

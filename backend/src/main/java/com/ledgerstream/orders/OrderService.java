@@ -22,6 +22,7 @@ import com.ledgerstream.domain.repository.UserRepository;
 import com.ledgerstream.events.EventPublisher;
 import com.ledgerstream.events.OrderCreatedEvent;
 import com.ledgerstream.logging.MdcScope;
+import com.ledgerstream.metrics.LedgerStreamMetrics;
 import com.ledgerstream.orders.dto.CreateOrderRequest;
 import com.ledgerstream.orders.dto.OrderResponse;
 import org.slf4j.Logger;
@@ -43,6 +44,7 @@ public class OrderService {
 	private final OrderRepository orderRepository;
 	private final EventPublisher eventPublisher;
 	private final AuditService auditService;
+	private final LedgerStreamMetrics metrics;
 	private final Clock clock;
 
 	public OrderService(
@@ -51,6 +53,7 @@ public class OrderService {
 		OrderRepository orderRepository,
 		EventPublisher eventPublisher,
 		AuditService auditService,
+		LedgerStreamMetrics metrics,
 		Clock clock
 	) {
 		this.userRepository = userRepository;
@@ -58,6 +61,7 @@ public class OrderService {
 		this.orderRepository = orderRepository;
 		this.eventPublisher = eventPublisher;
 		this.auditService = auditService;
+		this.metrics = metrics;
 		this.clock = clock;
 	}
 
@@ -144,6 +148,7 @@ public class OrderService {
 		TradeOrder savedOrder = orderRepository.save(order);
 		auditService.record(savedOrder.getUser(), "ORDER_CREATED", requestId, orderMetadata(savedOrder));
 		eventPublisher.publishOrderCreated(toOrderCreatedEvent(savedOrder, requestId));
+		metrics.recordOrderCreated();
 		try (MdcScope ignored = orderLogContext(savedOrder, "order.created")) {
 			log.info("order_created");
 		}

@@ -23,6 +23,7 @@ import com.ledgerstream.events.EventPublisher;
 import com.ledgerstream.events.OrderCreatedEvent;
 import com.ledgerstream.events.OrderFilledEvent;
 import com.ledgerstream.logging.MdcScope;
+import com.ledgerstream.metrics.LedgerStreamMetrics;
 import com.ledgerstream.portfolio.PortfolioLedgerService;
 import com.ledgerstream.quotes.QuoteQueryService;
 import com.ledgerstream.quotes.dto.QuoteResponse;
@@ -56,6 +57,7 @@ public class OrderExecutionService {
 	private final RiskCalculationService riskCalculationService;
 	private final EventPublisher eventPublisher;
 	private final AuditService auditService;
+	private final LedgerStreamMetrics metrics;
 	private final Clock clock;
 
 	public OrderExecutionService(
@@ -68,6 +70,7 @@ public class OrderExecutionService {
 		RiskCalculationService riskCalculationService,
 		EventPublisher eventPublisher,
 		AuditService auditService,
+		LedgerStreamMetrics metrics,
 		Clock clock
 	) {
 		this.orderRepository = orderRepository;
@@ -79,6 +82,7 @@ public class OrderExecutionService {
 		this.riskCalculationService = riskCalculationService;
 		this.eventPublisher = eventPublisher;
 		this.auditService = auditService;
+		this.metrics = metrics;
 		this.clock = clock;
 	}
 
@@ -143,6 +147,7 @@ public class OrderExecutionService {
 		applyPortfolioUpdate(portfolio, savedFill, sellPosition);
 		riskCalculationService.recordSnapshot(order.getUser().getId());
 		eventPublisher.publishOrderFilled(toOrderFilledEvent(savedFill));
+		metrics.recordOrderFilled();
 		try (MdcScope ignored = orderLogContext(order, "order.filled")) {
 			log.info("order_filled");
 		}
@@ -272,6 +277,7 @@ public class OrderExecutionService {
 		order.setRejectionReason(reason);
 		orderRepository.save(order);
 		auditService.record(order.getUser(), "ORDER_REJECTED", requestId, orderRejectionMetadata(order, reason));
+		metrics.recordOrderRejected();
 		try (MdcScope ignored = orderLogContext(order, "order.rejected")) {
 			log.info("order_rejected reason={}", reason);
 		}

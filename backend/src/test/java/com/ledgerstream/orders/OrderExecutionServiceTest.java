@@ -34,10 +34,12 @@ import com.ledgerstream.domain.repository.PositionRepository;
 import com.ledgerstream.events.EventPublisher;
 import com.ledgerstream.events.OrderCreatedEvent;
 import com.ledgerstream.events.OrderFilledEvent;
+import com.ledgerstream.metrics.LedgerStreamMetrics;
 import com.ledgerstream.portfolio.PortfolioLedgerService;
 import com.ledgerstream.quotes.QuoteQueryService;
 import com.ledgerstream.quotes.dto.QuoteResponse;
 import com.ledgerstream.risk.RiskCalculationService;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -81,11 +83,13 @@ class OrderExecutionServiceTest {
 	private AuditService auditService;
 
 	private OrderExecutionService executionService;
+	private SimpleMeterRegistry meterRegistry;
 	private User user;
 	private Symbol symbol;
 
 	@BeforeEach
 	void setUp() {
+		meterRegistry = new SimpleMeterRegistry();
 		executionService = new OrderExecutionService(
 			orderRepository,
 			fillRepository,
@@ -96,6 +100,7 @@ class OrderExecutionServiceTest {
 			riskCalculationService,
 			eventPublisher,
 			auditService,
+			new LedgerStreamMetrics(meterRegistry),
 			Clock.fixed(NOW, ZoneOffset.UTC)
 		);
 		user = user();
@@ -158,6 +163,8 @@ class OrderExecutionServiceTest {
 		assertThat(event.quantity()).isEqualByComparingTo("10.000000");
 		assertThat(event.price()).isEqualByComparingTo("187.480000");
 		assertThat(event.filledAt()).isEqualTo(NOW);
+		assertThat(counter(LedgerStreamMetrics.ORDERS_FILLED)).isEqualTo(1.0);
+		assertThat(counter(LedgerStreamMetrics.ORDERS_REJECTED)).isZero();
 	}
 
 	@Test
@@ -300,6 +307,8 @@ class OrderExecutionServiceTest {
 		verify(portfolioLedgerService, never()).appendFill(any(), any(), any(), any());
 		verify(riskCalculationService, never()).recordSnapshot(any());
 		verify(eventPublisher, never()).publishOrderFilled(any(OrderFilledEvent.class));
+		assertThat(counter(LedgerStreamMetrics.ORDERS_REJECTED)).isEqualTo(1.0);
+		assertThat(counter(LedgerStreamMetrics.ORDERS_FILLED)).isZero();
 	}
 
 	@Test
@@ -478,5 +487,9 @@ class OrderExecutionServiceTest {
 		testSymbol.setCurrency("USD");
 		testSymbol.setActive(true);
 		return testSymbol;
+	}
+
+	private double counter(String name) {
+		return meterRegistry.get(name).counter().count();
 	}
 }
