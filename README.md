@@ -149,10 +149,13 @@ cd frontend
 npm install
 npm run build
 npm test -- --run
+npm run test:ci
 npm run dev
 ```
 
 Set `VITE_API_BASE_URL` for local development or `FRONTEND_API_BASE_URL` when building through Docker Compose. The app shell includes routes for dashboard, login/register, portfolio, orders, risk, and admin replay controls. The Admin nav item is shown only for authenticated users with the `ADMIN` role.
+
+Frontend tests cover login form validation, quote dashboard rendering and stream states, order ticket validation and idempotency headers, portfolio summary and ledger tables, risk summary/history rendering, and admin replay controls.
 
 Frontend authentication is wired to the backend register, login, refresh, logout, and `/api/me` endpoints. Tokens are stored in browser `sessionStorage` for the MVP; see [Security](docs/security.md) for the tradeoff.
 

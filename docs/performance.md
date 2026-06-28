@@ -40,6 +40,10 @@ The integration test class is marked with Testcontainers' Docker-disabled skip b
 
 Market-data worker tests validate deterministic CSV parsing, invalid row handling, event serialization, dry-run replay output, publisher calls, and replay timing calculations with an injected sleeper. These tests do not produce throughput or latency claims; replay throughput remains a planned measurement once the full local stack can be run.
 
+## Frontend Test Strategy
+
+Frontend tests use Vitest, React Testing Library, mocked API responses, and mocked quote stream callbacks to verify login form validation, quote dashboard rendering, stream connection states, order ticket validation, portfolio table rendering, risk summary rendering, and admin replay controls. The CI-friendly command is `npm run test:ci` from `frontend/`.
+
 ## TODO
 
 - Add k6 scripts.
