@@ -245,6 +245,10 @@ Demo account seeding is disabled by default. For local development only, set `DE
 - [Performance](docs/performance.md)
 - [Demo Script](docs/demo-script.md)
 
+## Security Checks
+
+Dependabot monitors backend Maven, frontend npm, and market-data worker Python dependencies. Pull requests also run Dependency Review and fail when dependency changes introduce high-severity vulnerable packages.
+
 ## Measurement Policy
 
 Latency, throughput, cache-hit rate, coverage, and other performance claims must be measured before they are documented. Performance results in this README are local baselines and should not be reused as production capacity claims.
