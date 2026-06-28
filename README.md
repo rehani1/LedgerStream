@@ -189,6 +189,17 @@ cd ..
 docker compose down
 ```
 
+### Load Tests
+
+k6 scripts live under `load-tests/k6/` for order creation and quote API load testing. They are parameterized with `BASE_URL`, `AUTH_TOKEN`, or `K6_EMAIL` and `K6_PASSWORD`.
+
+```bash
+k6 run load-tests/k6/order-create.js
+k6 run load-tests/k6/quote-api.js
+```
+
+Install k6 before running these scripts. The performance docs keep p95 latency, request rate, and failure rate as TODO until tests are run against a documented environment.
+
 ### Demo Data
 
 Supported symbols are seeded by Flyway: `AAPL`, `MSFT`, `NVDA`, `TSLA`, and `SPY`.

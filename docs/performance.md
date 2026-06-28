@@ -8,11 +8,11 @@ This document will contain measured results only. Do not fill in latency, throug
 
 | Metric | Result | Test Source |
 | --- | --- | --- |
-| Order creation p95 latency | TODO: measure | k6 order test |
-| Quote API p95 latency | TODO: measure | k6 quote test |
-| Order creation throughput | TODO: measure | k6 order test |
+| Order creation p95 latency | TODO: measure | `load-tests/k6/order-create.js` |
+| Quote API p95 latency | TODO: measure | `load-tests/k6/quote-api.js` |
+| Order creation throughput | TODO: measure | `load-tests/k6/order-create.js` |
 | Market tick ingestion rate | TODO: measure | replay plus backend metrics |
-| API error rate under load | TODO: measure | k6 summary |
+| API error rate under load | TODO: measure | k6 custom failure rates |
 
 ## Test Environment
 
@@ -46,9 +46,20 @@ Frontend tests use Vitest, React Testing Library, mocked API responses, and mock
 
 Playwright E2E tests run the login, quote dashboard, paper order, order history, portfolio, and ledger browser flow. The default `npm run e2e` path uses mocked backend responses for deterministic CI execution. Setting `E2E_MOCK_API=false` runs the same browser flow against a seeded local backend stack, but that mode requires Docker Compose services, demo credentials, and market data to be available.
 
+## Load Test Scripts
+
+k6 scripts are available under `load-tests/k6/`:
+
+- `order-create.js` submits authenticated market order creation requests with a unique `Idempotency-Key` per iteration.
+- `quote-api.js` reads authenticated latest quotes for a configurable ticker list.
+- `lib/auth.js` accepts `AUTH_TOKEN` or logs in with `K6_EMAIL` and `K6_PASSWORD` during setup.
+
+Both scripts define target thresholds for p95 latency, request rate, and failure rate. These are pass/fail goals, not measured results. The default order creation profile uses one VU and a one-second sleep to stay below the backend's default per-user order rate limit.
+
+No k6 SSE streaming script is included yet because k6 does not provide a native EventSource client. Streaming load should be measured later with an EventSource-capable k6 extension or another tool that can count delivered events accurately.
+
 ## TODO
 
-- Add k6 scripts.
 - Run local stack load tests.
 - Record raw command outputs or summaries.
 - Add interpretation and limitations.
