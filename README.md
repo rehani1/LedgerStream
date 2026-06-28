@@ -52,7 +52,7 @@ The initial public smoke endpoints are:
 - `GET /api/ping`
 - `GET /actuator/health`
 
-The backend echoes or generates `X-Request-ID` for request tracing and uses the same ID in standard API error responses.
+The backend echoes or generates `X-Request-ID` for request tracing and uses the same ID in standard API error responses. In the local profile, backend console logs use structured JSON and include request completion fields plus safe order/event context such as `userId`, `orderId`, `symbol`, and `eventType`.
 
 Latest quote cache entries are stored in Redis under keys like `latest_quote:AAPL`; the cached JSON payload includes quote timestamp metadata so callers can detect stale prices before falling back to PostgreSQL.
 

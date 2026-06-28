@@ -21,3 +21,9 @@ logging:
           - userId
           - orderId
           - symbol
+          - eventType
+          - httpMethod
+          - httpPath
+          - endpoint
+          - httpStatus
+          - latencyMs

@@ -21,8 +21,11 @@ import com.ledgerstream.domain.repository.SymbolRepository;
 import com.ledgerstream.domain.repository.UserRepository;
 import com.ledgerstream.events.EventPublisher;
 import com.ledgerstream.events.OrderCreatedEvent;
+import com.ledgerstream.logging.MdcScope;
 import com.ledgerstream.orders.dto.CreateOrderRequest;
 import com.ledgerstream.orders.dto.OrderResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +34,7 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class OrderService {
 
+	private static final Logger log = LoggerFactory.getLogger(OrderService.class);
 	private static final Pattern TICKER_PATTERN = Pattern.compile("[A-Z0-9.]{1,16}");
 	private static final Pattern IDEMPOTENCY_KEY_PATTERN = Pattern.compile("[A-Za-z0-9._:-]{8,128}");
 
@@ -94,6 +98,9 @@ public class OrderService {
 		order.setStatus(OrderStatus.CANCELLED);
 		TradeOrder savedOrder = orderRepository.save(order);
 		auditService.record(savedOrder.getUser(), "ORDER_CANCELLED", requestId, orderMetadata(savedOrder));
+		try (MdcScope ignored = orderLogContext(savedOrder, "order.cancelled")) {
+			log.info("order_cancelled");
+		}
 		return OrderResponse.from(savedOrder);
 	}
 
@@ -137,6 +144,9 @@ public class OrderService {
 		TradeOrder savedOrder = orderRepository.save(order);
 		auditService.record(savedOrder.getUser(), "ORDER_CREATED", requestId, orderMetadata(savedOrder));
 		eventPublisher.publishOrderCreated(toOrderCreatedEvent(savedOrder, requestId));
+		try (MdcScope ignored = orderLogContext(savedOrder, "order.created")) {
+			log.info("order_created");
+		}
 		return new CreateOrderResult(OrderResponse.from(savedOrder), true);
 	}
 
@@ -188,6 +198,15 @@ public class OrderService {
 			"orderType", order.getOrderType().name(),
 			"quantity", order.getQuantity()
 		);
+	}
+
+	private MdcScope orderLogContext(TradeOrder order, String eventType) {
+		return MdcScope.put(Map.of(
+			"userId", order.getUser().getId().toString(),
+			"orderId", order.getId().toString(),
+			"symbol", order.getSymbol().getTicker(),
+			"eventType", eventType
+		));
 	}
 
 	private String normalizeTicker(String ticker) {

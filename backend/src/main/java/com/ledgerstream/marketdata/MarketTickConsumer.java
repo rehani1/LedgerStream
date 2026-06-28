@@ -1,7 +1,11 @@
 package com.ledgerstream.marketdata;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 import com.ledgerstream.events.EventTopics;
 import com.ledgerstream.events.MarketTickEvent;
+import com.ledgerstream.logging.MdcScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -25,10 +29,19 @@ public class MarketTickConsumer {
 		containerFactory = "marketTickKafkaListenerContainerFactory"
 	)
 	public void receive(MarketTickEvent event) {
-		try {
+		try (MdcScope ignored = marketTickContext(event)) {
 			ingestionService.ingest(event);
 		} catch (MarketTickRejectedException ex) {
 			log.warn("Rejected market tick event: {}", ex.getMessage());
 		}
+	}
+
+	private MdcScope marketTickContext(MarketTickEvent event) {
+		Map<String, Object> context = new LinkedHashMap<>();
+		context.put("eventType", "market.tick");
+		if (event != null) {
+			context.put("symbol", event.symbol());
+		}
+		return MdcScope.put(context);
 	}
 }

@@ -22,10 +22,13 @@ import com.ledgerstream.domain.repository.PositionRepository;
 import com.ledgerstream.events.EventPublisher;
 import com.ledgerstream.events.OrderCreatedEvent;
 import com.ledgerstream.events.OrderFilledEvent;
+import com.ledgerstream.logging.MdcScope;
 import com.ledgerstream.portfolio.PortfolioLedgerService;
 import com.ledgerstream.quotes.QuoteQueryService;
 import com.ledgerstream.quotes.dto.QuoteResponse;
 import com.ledgerstream.risk.RiskCalculationService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,6 +45,7 @@ public class OrderExecutionService {
 	static final BigDecimal ZERO_QUANTITY = new BigDecimal("0.000000");
 
 	private static final RoundingMode ACCOUNTING_ROUNDING = RoundingMode.HALF_UP;
+	private static final Logger log = LoggerFactory.getLogger(OrderExecutionService.class);
 
 	private final OrderRepository orderRepository;
 	private final FillRepository fillRepository;
@@ -139,6 +143,9 @@ public class OrderExecutionService {
 		applyPortfolioUpdate(portfolio, savedFill, sellPosition);
 		riskCalculationService.recordSnapshot(order.getUser().getId());
 		eventPublisher.publishOrderFilled(toOrderFilledEvent(savedFill));
+		try (MdcScope ignored = orderLogContext(order, "order.filled")) {
+			log.info("order_filled");
+		}
 	}
 
 	private QuoteResponse latestQuote(TradeOrder order) {
@@ -265,6 +272,9 @@ public class OrderExecutionService {
 		order.setRejectionReason(reason);
 		orderRepository.save(order);
 		auditService.record(order.getUser(), "ORDER_REJECTED", requestId, orderRejectionMetadata(order, reason));
+		try (MdcScope ignored = orderLogContext(order, "order.rejected")) {
+			log.info("order_rejected reason={}", reason);
+		}
 	}
 
 	private Map<String, Object> orderRejectionMetadata(TradeOrder order, String reason) {
@@ -291,5 +301,14 @@ public class OrderExecutionService {
 			fill.getFee(),
 			fill.getFilledAt()
 		);
+	}
+
+	private MdcScope orderLogContext(TradeOrder order, String eventType) {
+		return MdcScope.put(Map.of(
+			"userId", order.getUser().getId().toString(),
+			"orderId", order.getId().toString(),
+			"symbol", order.getSymbol().getTicker(),
+			"eventType", eventType
+		));
 	}
 }
