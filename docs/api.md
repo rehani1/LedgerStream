@@ -2,9 +2,9 @@
 
 ## Status
 
-The API surface below is the target contract. Endpoints will be marked as implemented as backend work lands.
+This document describes the implemented LedgerStream HTTP API and Kafka-compatible event payloads.
 
-## Planned Endpoints
+## Endpoint Summary
 
 | Area | Method | Path | Auth | Notes |
 | --- | --- | --- | --- | --- |
@@ -35,6 +35,35 @@ The API surface below is the target contract. Endpoints will be marked as implem
 | Observability | `GET` | `/actuator/health` | Public or internal | Health checks. |
 | Observability | `GET` | `/actuator/prometheus` | Internal | Prometheus metrics. |
 
+## Base URL And Headers
+
+Local Compose defaults to:
+
+```bash
+BASE_URL=http://localhost:8080
+```
+
+Most API requests and responses use JSON:
+
+```http
+Accept: application/json
+Content-Type: application/json
+```
+
+Authenticated endpoints require:
+
+```http
+Authorization: Bearer <accessToken>
+```
+
+Order creation also requires:
+
+```http
+Idempotency-Key: <stable-client-key>
+```
+
+Clients may send `X-Request-ID` with a safe ASCII value up to 128 characters. The backend echoes it in the `X-Request-ID` response header and includes it in standard API errors. If the header is absent or invalid, the backend generates a UUID request ID.
+
 ## Error Shape
 
 Standard error response:
@@ -50,7 +79,20 @@ Standard error response:
 }
 ```
 
-Clients may send `X-Request-ID` with a safe ASCII value up to 128 characters. The backend echoes it in the `X-Request-ID` response header and includes it in standard API errors. If the header is absent or invalid, the backend generates a UUID request ID.
+Validation error example:
+
+```json
+{
+  "timestamp": "2026-01-02T14:35:00Z",
+  "status": 400,
+  "error": "Bad Request",
+  "message": "quantity must be greater than or equal to 0.000001",
+  "path": "/api/orders",
+  "requestId": "6cc41c21-65de-4d0c-9ad0-344d17de9d6c"
+}
+```
+
+Authentication and authorization errors use the same shape. Missing or invalid bearer tokens return `401`; authenticated users without the required role return `403`; cancelling a non-pending order returns `409`; rate-limited requests return `429` plus rate-limit headers.
 
 ## Rate Limits
 
@@ -69,7 +111,18 @@ The limiter keys authenticated requests by user ID. Anonymous login and registra
 
 ## Authentication
 
-Implemented auth endpoints return this shape:
+Registration and login request bodies:
+
+```json
+{
+  "email": "demo@example.com",
+  "password": "Password123!"
+}
+```
+
+Passwords must be 8 to 128 characters and include at least one letter and one number.
+
+Auth endpoints return this shape:
 
 ```json
 {
@@ -107,6 +160,12 @@ Refresh tokens are opaque values returned only at issue time. The backend stores
 All non-auth API endpoints require a bearer access token unless explicitly marked public. `/api/admin/**` endpoints require a user with the `ADMIN` role.
 
 The frontend auth flow posts credentials to the implemented auth endpoints, stores the returned token pair in `sessionStorage` for the current browser session, verifies stored access tokens with `GET /api/me`, and attempts refresh-token rotation when a stored access token is no longer accepted.
+
+## Demo Credentials
+
+No demo credentials are enabled by default. For local development only, set `DEMO_SEED_ENABLED=true` and provide `DEMO_USER_EMAIL`, `DEMO_USER_PASSWORD`, and `DEMO_USER_INITIAL_CASH`. Admin replay controls require `DEMO_ADMIN_SEED_ENABLED=true` plus `DEMO_ADMIN_EMAIL` and `DEMO_ADMIN_PASSWORD`.
+
+Do not reuse local demo credentials in production or committed deployment configuration.
 
 ## Symbols And Quotes
 
@@ -367,6 +426,17 @@ If a latest quote is unavailable, risk valuation falls back to average cost and 
 }
 ```
 
+## Pagination
+
+Ledger and risk history endpoints use zero-based pagination:
+
+| Parameter | Default | Bounds | Notes |
+| --- | ---: | --- | --- |
+| `page` | `0` | `>= 0` | Negative pages return `400`. |
+| `size` | `50` | `1` to `100` | Oversized requests return `400`. |
+
+Responses include the requested `page`, resolved `size`, `totalElements`, and `totalPages`.
+
 ## Admin
 
 Admin endpoints require an access token for a user with the `ADMIN` role.
@@ -399,6 +469,68 @@ The current MVP uses `mode: "backend_state"`. These endpoints do not spawn or ki
     "auditEvent": "audit.event"
   }
 }
+```
+
+## Sample Curl Commands
+
+Register a local user:
+
+```bash
+curl -sS -X POST "$BASE_URL/api/auth/register" \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"demo@example.com","password":"Password123!"}'
+```
+
+Log in and copy the returned `accessToken` into `TOKEN`:
+
+```bash
+curl -sS -X POST "$BASE_URL/api/auth/login" \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"demo@example.com","password":"Password123!"}'
+
+TOKEN='<accessToken>'
+```
+
+List symbols:
+
+```bash
+curl -sS "$BASE_URL/api/symbols" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Read the latest quote:
+
+```bash
+curl -sS "$BASE_URL/api/symbols/AAPL/quote" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Create a paper market order:
+
+```bash
+curl -sS -X POST "$BASE_URL/api/orders" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: demo-order-0001' \
+  -d '{"symbol":"AAPL","side":"BUY","orderType":"MARKET","quantity":1}'
+```
+
+Read portfolio and ledger state:
+
+```bash
+curl -sS "$BASE_URL/api/portfolio" \
+  -H "Authorization: Bearer $TOKEN"
+
+curl -sS "$BASE_URL/api/portfolio/ledger?page=0&size=10" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Open the quote stream:
+
+```bash
+curl -N "$BASE_URL/api/stream/quotes?symbols=AAPL,MSFT" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Accept: text/event-stream'
 ```
 
 ## Event Topics
@@ -495,10 +627,3 @@ LedgerStream uses JSON payloads on Kafka-compatible topics.
   "createdAt": "2026-01-01T14:30:05Z"
 }
 ```
-
-## TODO
-
-- Add concrete request and response examples after endpoints are implemented.
-- Add idempotency semantics.
-- Add pagination parameters and defaults.
-- Add curl examples.
