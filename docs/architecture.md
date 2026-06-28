@@ -2,99 +2,162 @@
 
 ## Overview
 
-LedgerStream is planned as an event-driven paper-trading system. Market data enters through a Python replay worker, moves through a Kafka-compatible stream, and is consumed by the Spring Boot backend for persistence, cache updates, order execution, portfolio accounting, risk snapshots, and client streaming.
+LedgerStream is an event-driven paper-trading system. Deterministic market data enters through a Python replay worker, moves through Redpanda, and is consumed by the Spring Boot backend for historical storage, hot quote cache updates, quote streaming, market order execution, portfolio accounting, risk snapshots, and audit logging.
 
-## Target Services
+The system intentionally models paper trading only. There is no real brokerage order placement path, and all financial mutations are scoped to authenticated LedgerStream users.
 
-| Service | Responsibility |
-| --- | --- |
-| `frontend` | Authenticated dashboard, quote stream display, order ticket, portfolio, ledger, risk, and admin replay-control views. |
-| `backend` | REST API, authentication, authorization, streaming gateway, order processing, ledger writes, risk calculations, metrics, and logs. |
-| `market-data-worker` | Deterministic CSV replay and normalized `market.tick` event publishing. |
-| `postgres` | Durable relational state for accounts, symbols, orders, fills, positions, ledger entries, risk snapshots, and audit events. |
-| `redis` | Latest quote cache, hot-path reads, and future rate-limiting state. |
-| `redpanda` | Kafka-compatible event backbone. |
-| `prometheus` | Metrics scraping. |
-| `grafana` | Dashboard visualization. |
+## System Topology
 
-## Planned Event Flow
-
-```text
-CSV replay
-  -> market-data-worker
-  -> market.tick
-  -> backend consumer
-  -> price_ticks, latest quote cache, quote stream, order evaluation
-  -> fills, positions, ledger_entries, portfolio.updated, risk.updated
+```mermaid
+flowchart LR
+  Browser[Browser dashboard] -->|loads static app| Frontend[frontend\nReact + Vite]
+  Browser -->|REST API + SSE| Backend[backend\nSpring Boot 3]
+  Worker[market-data-worker\nPython replay] -->|market.tick JSON| Redpanda[(Redpanda)]
+  Redpanda -->|market.tick\norder.created| Backend
+  Backend -->|order.created\norder.filled\nrisk.updated\naudit.event| Redpanda
+  Backend <--> Postgres[(PostgreSQL)]
+  Backend <--> Redis[(Redis)]
+  Prometheus[Prometheus] -->|scrape /actuator/prometheus| Backend
+  Grafana[Grafana] --> Prometheus
 ```
 
-## Design Priorities
+## Service Responsibilities
 
-- Transactional correctness for cash, fills, positions, and ledger entries.
-- Idempotent order creation through a user-scoped idempotency key.
-- User-scoped authorization for all financial data.
-- Deterministic replay data for demos and tests.
-- Measured performance claims only after load tests are run.
-
-## Backend Foundation
-
-The backend starts as a Spring Boot 3 application with Web, Security, Validation, JPA, Redis, Flyway, Kafka, Actuator, Prometheus, PostgreSQL, and Testcontainers dependencies. The first exposed endpoints are `/api/ping` and `/actuator/health`; domain endpoints are added behind authentication as their backing services land.
-
-## Frontend Foundation
-
-The frontend is a Vite React TypeScript app. It uses React Router for dashboard, authentication, portfolio, orders, and risk routes; TanStack Query for API-backed state; and a small API client abstraction that reads `VITE_API_BASE_URL`. Docker builds the static bundle and serves it through Nginx with SPA route fallback.
-
-## Redis Cache
-
-The backend has a Redis-backed latest quote cache abstraction. Latest quote entries use the key pattern `latest_quote:{SYMBOL}` by default, with symbols normalized to uppercase. Values are JSON payloads that include the quote timestamp, bid, ask, last price, volume, and source. No TTL is applied yet because stale detection should use the embedded timestamp and future quote APIs can fall back to PostgreSQL.
-
-Symbol and quote REST APIs are authenticated. Latest quote reads check Redis first and fall back to the newest persisted tick in PostgreSQL. Historical quote reads are bounded by a supported range and a maximum limit of 500 ticks.
-
-The quote stream endpoint uses Server-Sent Events. Clients subscribe to up to 25 symbols per connection. The backend keeps an in-memory subscriber registry and broadcasts accepted `market.tick` updates after persistence and Redis cache refresh. This is correct for the single-backend MVP; multi-instance deployment will need shared pub/sub fanout or sticky routing.
-
-## Event Streaming
-
-Backend event streaming is configured through Spring Kafka for Redpanda-compatible brokers. Producer JSON serialization is configured with idempotent producer settings and `acks=all`. Type headers are disabled so worker and frontend-adjacent tooling can consume plain JSON by topic contract.
-
-Configured topics:
-
-| Topic | Purpose |
+| Service | Runtime responsibility |
 | --- | --- |
-| `market.tick` | Normalized quote ticks from replay or ingestion workers. |
-| `order.created` | User order submission events. |
-| `order.filled` | Simulated fill events. |
-| `portfolio.updated` | Portfolio summary updates. |
-| `risk.updated` | Risk snapshot updates. |
-| `audit.event` | Security and financial audit events. |
+| `frontend` | Authenticated React dashboard for quotes, streaming prices, order entry, order history, portfolio, ledger, risk, and admin replay controls. |
+| `backend` | REST API, JWT and refresh-token auth, RBAC, SSE gateway, quote queries, order submission, market execution, portfolio ledger settlement, risk calculations, structured logs, metrics, and health checks. |
+| `market-data-worker` | Deterministic CSV replay, row validation, replay speed control, dry-run output, and normalized `market.tick` event publishing. |
+| `postgres` | Durable relational source of truth for users, tokens, symbols, ticks, orders, fills, portfolios, positions, ledger rows, risk snapshots, and audit events. |
+| `redis` | Hot latest-quote cache using `latest_quote:{SYMBOL}` keys. Quote APIs fall back to PostgreSQL when the cache misses or cache reads fail. |
+| `redpanda` | Kafka-compatible event stream for market data and backend domain events. |
+| `prometheus` | Scrapes backend actuator metrics and stores local metric history. |
+| `grafana` | Provisioned dashboard for local platform visibility. |
 
-A disabled-by-default market tick connectivity listener is available through `BACKEND_KAFKA_CONNECTIVITY_CONSUMER_ENABLED=true` for local broker wiring checks.
+## Market Data Flow
 
-The backend now consumes `market.tick` events through the `marketTickKafkaListenerContainerFactory`. Each accepted tick resolves its symbol, writes a historical `price_ticks` row unless the same `(symbol, timestamp, source)` already exists, refreshes the Redis latest quote cache, broadcasts the quote to SSE clients, and records fresh risk snapshots for users with open positions in that symbol. Invalid payloads and unknown symbols are rejected and counted without retrying; unexpected infrastructure failures are allowed to propagate to Kafka retry/error handling. The consumer can be disabled with `BACKEND_MARKET_TICK_CONSUMER_ENABLED=false`.
+```mermaid
+sequenceDiagram
+  participant Worker as market-data-worker
+  participant Stream as Redpanda
+  participant Backend as backend market tick consumer
+  participant DB as PostgreSQL
+  participant Cache as Redis
+  participant SSE as SSE clients
+  participant Risk as Risk service
 
-The backend also consumes `order.created` events through the `orderCreatedKafkaListenerContainerFactory`. The execution service reloads the stored order by ID and only evaluates orders that are still `PENDING` and have type `MARKET`; limit orders remain pending for a later matching flow. Market buys use the latest ask price with a last-price fallback, while market sells use the latest bid price with a last-price fallback. Orders are rejected when no quote is available, no positive executable price exists, the buyer has insufficient cash, or the seller has insufficient shares.
-
-When a market order is executable, the service creates a zero-fee fill, marks the order `FILLED`, settles portfolio cash and position state, appends a ledger entry, records a risk snapshot, publishes `risk.updated`, and publishes `order.filled` in the same transactional service boundary. BUY fills decrease cash, increase quantity, recalculate weighted average cost, and append `BUY_FILL` ledger rows. SELL fills increase cash, decrease quantity, update realized P&L, and append `SELL_FILL` ledger rows. Portfolio summary events remain a follow-on layer.
-
-The order execution consumer can be disabled with `BACKEND_ORDER_CREATED_CONSUMER_ENABLED=false`, which is useful for API-only tests and local debugging without automatic fills.
-
-## Market Data Worker
-
-The Python worker is scaffolded under `workers/market-data` with a CLI entry point:
-
-```bash
-PYTHONPATH=src python -m ledgerstream_market_data replay --file data/sample_ticks.csv --dry-run
+  Worker->>Stream: publish market.tick
+  Stream->>Backend: deliver MarketTickEvent
+  Backend->>Backend: validate symbol, timestamp, prices, volume
+  Backend->>DB: resolve symbol
+  Backend->>DB: insert price_ticks unless duplicate source timestamp
+  Backend->>Cache: update latest_quote:{SYMBOL}
+  Backend->>SSE: broadcast quote event to matching subscribers
+  Backend->>Risk: record snapshots for users holding the symbol
 ```
 
-The worker validates replay configuration and deterministic CSV fixtures. `data/sample_ticks.csv` contains 25 ticks across `AAPL`, `MSFT`, `NVDA`, `TSLA`, and `SPY`, with bid, ask, last, volume, timestamp, and source fields. Each replayed row becomes a normalized `market.tick` JSON event with a deterministic UUIDv5 `eventId`. `--dry-run` prints events without Kafka; the Compose worker profile publishes to Redpanda.
+The worker fixture currently contains 25 ticks across `AAPL`, `MSFT`, `NVDA`, `TSLA`, and `SPY`. Each row is serialized as a plain JSON `market.tick` payload with a deterministic UUIDv5 `eventId`. The backend normalizes symbols to uppercase and rejects malformed ticks before any cache or ledger-facing work.
 
-## Admin Replay Controls
+## Order Lifecycle
 
-Admin replay controls are exposed through `/api/admin/market/replay/status`, `/api/admin/market/replay/start`, and `/api/admin/market/replay/stop`. The current control mode is `backend_state`: the backend stores the requested replay state in memory, records admin audit events, and returns clear status for the dashboard. It does not directly start or stop the Python worker yet. Local demos still run the worker through the Compose `worker` profile, and a future worker polling or control-topic flow can replace the state-only mode.
+```mermaid
+stateDiagram-v2
+  [*] --> PENDING: POST /api/orders
+  PENDING --> FILLED: market order executes
+  PENDING --> REJECTED: no quote, no executable price, insufficient cash, insufficient shares, or missing portfolio
+  PENDING --> CANCELLED: POST /api/orders/{id}/cancel
+  FILLED --> [*]
+  REJECTED --> [*]
+  CANCELLED --> [*]
+```
 
-## TODO
+Market orders are evaluated asynchronously from `order.created`. Limit orders can be accepted into `PENDING`, but the matching flow is not implemented yet. Cancelling is only allowed while an order is still `PENDING`.
 
-- Add service diagram.
-- Add order lifecycle diagram.
-- Add failure handling and retry strategy.
-- Add deployment topology.
-- Add measured throughput and latency once load tests exist.
+## Order Execution Flow
+
+```mermaid
+sequenceDiagram
+  participant Client
+  participant API as backend REST API
+  participant DB as PostgreSQL
+  participant Stream as Redpanda
+  participant Executor as order execution consumer
+  participant Cache as Redis
+
+  Client->>API: POST /api/orders with JWT and Idempotency-Key
+  API->>DB: find order by user_id and idempotency_key
+  alt Existing key
+    API-->>Client: existing order response
+  else New key
+    API->>DB: insert PENDING order and audit event
+    API->>Stream: publish order.created
+    API-->>Client: created order response
+    Stream->>Executor: deliver order.created
+    Executor->>DB: load stored order
+    Executor->>Cache: read latest executable quote
+    Executor->>DB: fallback to newest price_ticks row on cache miss
+    alt Executable market order
+      Executor->>DB: fill, order FILLED, portfolio cash, position, ledger row, risk snapshot
+      Executor->>Stream: publish order.filled and risk.updated
+    else Not executable
+      Executor->>DB: mark order REJECTED with reason and audit event
+    end
+  end
+```
+
+BUY execution uses ask price with last-price fallback. SELL execution uses bid price with last-price fallback. The current fee model is zero-fee, but fills and ledger metadata already carry a fee field so a later fee model can be added without changing the ledger shape.
+
+## Consistency Boundaries
+
+- `orders(user_id, idempotency_key)` is the duplicate-submission boundary. A duplicate request returns the existing order and does not publish another `order.created` event.
+- Market execution is a Spring transaction that updates order status, writes the fill, settles portfolio cash, updates the position, appends the ledger entry, records risk, and records rejection audit events when relevant.
+- `PortfolioLedgerService` and `AuditService` require an existing transaction, which keeps ledger and audit writes tied to the domain mutation that caused them.
+- Market tick ingestion is transactional for symbol resolution, historical tick persistence, quote cache refresh, SSE broadcast trigger, and affected-user risk snapshots. Rejected tick events are counted and acknowledged by the consumer after logging.
+- Kafka publishes are issued by service code but are not backed by an outbox table yet. A crash between database commit and event acknowledgement is a known reliability gap for a later outbox or transactional messaging pass.
+
+## Event Topics
+
+Spring Kafka is configured for Redpanda-compatible brokers. Producer JSON serialization uses plain JSON without type headers so event contracts are topic-driven and easy to inspect with non-Java tooling.
+
+| Topic | Current use |
+| --- | --- |
+| `market.tick` | Produced by the worker and consumed by the backend quote ingestion path. |
+| `order.created` | Produced by order submission and consumed by market execution. |
+| `order.filled` | Produced after successful simulated execution. |
+| `portfolio.updated` | Contract exists for portfolio fanout; portfolio APIs currently read from PostgreSQL. |
+| `risk.updated` | Produced when a risk snapshot is recorded. |
+| `audit.event` | Contract exists for audit fanout; audit events are currently persisted in PostgreSQL. |
+
+The market tick connectivity listener can be enabled with `BACKEND_KAFKA_CONNECTIVITY_CONSUMER_ENABLED=true` for local broker checks. The main tick and order consumers can be disabled with `BACKEND_MARKET_TICK_CONSUMER_ENABLED=false` and `BACKEND_ORDER_CREATED_CONSUMER_ENABLED=false` for API-only testing.
+
+## Failure Handling
+
+- API validation and authorization failures return the standard JSON error shape with `requestId`.
+- Unknown symbols, missing fields, non-positive prices, negative volume, and crossed bid/ask values reject `market.tick` events and increment `ledgerstream_market_ticks_failed_total`.
+- Duplicate replay ticks are idempotent at `(symbol_id, ts, source)`: historical insertion is skipped, but the latest quote cache and stream fanout can still reflect the event.
+- Redis read failures on quote APIs degrade to PostgreSQL fallback. Redis write or database failures during tick ingestion fail the event processing path and let the Kafka container handle the unexpected exception.
+- SSE send failures close the affected emitter and increment `ledgerstream_quote_stream_send_failures_total`.
+- Market orders reject with explicit persisted reasons when quote, price, cash, shares, or portfolio prerequisites are missing.
+- There is no production dead-letter queue or outbox processor yet. Those are documented tradeoffs rather than hidden guarantees.
+
+## Security And Observability
+
+The backend uses JWT access tokens, hashed refresh tokens with rotation, BCrypt password hashing, RBAC, CORS from environment configuration, and user-scoped repository queries for financial data. Admin replay endpoints require the `ADMIN` role.
+
+Every request receives or echoes an `X-Request-ID`. Local backend logs are structured JSON and include safe operational identifiers such as user ID, order ID, symbol, event type, and request ID. Metrics are exposed through `/actuator/prometheus`; the Grafana dashboard reads from the local Prometheus service.
+
+Measured low-load Docker Compose performance results are tracked in [Performance](performance.md). Current local baselines include 82.52 ms p95 order creation latency, 101.86 ms p95 quote API latency, and 25 replay ticks consumed with 0 failed ticks.
+
+## Deployment Shape
+
+The local deployment is Compose-based: backend, frontend, PostgreSQL, Redis, Redpanda, Prometheus, and Grafana run on one developer machine. The documented hosted MVP path keeps the same service boundaries while moving stateful services to managed providers: frontend on Vercel, backend on Fly.io or Render, PostgreSQL on Neon or Supabase, Redis on Upstash, and a hosted Kafka-compatible broker such as Redpanda Cloud.
+
+Kubernetes is intentionally out of scope for the MVP. The current architecture favors a small set of explicit services, strong tests, and documented operational tradeoffs over orchestration complexity.
+
+## Tradeoffs
+
+- SSE subscriptions are stored in backend memory. Multi-instance production requires sticky routing or shared pub/sub fanout.
+- Admin replay controls currently store desired replay state in the backend; the Python worker is still started through the Compose `worker` profile.
+- The event stream uses JSON contracts rather than a schema registry.
+- Portfolio valuation uses latest quotes with cost-basis fallback when no quote is available.
+- Rate-limiting infrastructure is reserved for Redis but not fully implemented yet.

@@ -8,7 +8,7 @@ LedgerStream is an event-driven paper-trading platform that will ingest determin
 
 ## Target Architecture
 
-The finished system is planned as a small monorepo with these services:
+The system is organized as a small monorepo with these services:
 
 - `frontend`: React, TypeScript, and Vite dashboard.
 - `backend`: Java 21 and Spring Boot 3 API, authentication, streaming gateway, and portfolio engine.
@@ -18,7 +18,7 @@ The finished system is planned as a small monorepo with these services:
 - `redpanda`: Kafka-compatible event stream for market and portfolio events.
 - `prometheus` and `grafana`: metrics collection and dashboards.
 
-Planned event flow:
+Event flow:
 
 ```text
 CSV replay or market data source
@@ -28,6 +28,8 @@ CSV replay or market data source
   -> PostgreSQL, Redis, SSE quote streams, fills, ledger, risk snapshots
   -> React dashboard
 ```
+
+For the full service topology and schema design, see [Architecture](docs/architecture.md) and [Data Model](docs/data-model.md).
 
 ## Local Development
 
