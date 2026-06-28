@@ -1,6 +1,6 @@
 # LedgerStream
 
-[![CI](https://github.com/rehani1/LedgerStream/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/rehani1/LedgerStream/actions/workflows/ci.yml)
+[![CI](https://github.com/rehani1/LedgerStream/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/rehani1/LedgerStream/actions/workflows/ci.yml)
 
 Real-Time Paper Trading & Risk Platform
 
@@ -30,6 +30,25 @@ CSV replay or market data source
 ```
 
 For the full service topology and schema design, see [Architecture](docs/architecture.md) and [Data Model](docs/data-model.md).
+
+## Live Deployment
+
+Public deployment links:
+
+- Frontend: <https://ledger-stream.vercel.app/>
+- Backend: <https://ledgerstream-backend-5rk9.onrender.com/>
+- Backend health: <https://ledgerstream-backend-5rk9.onrender.com/actuator/health>
+
+The deployed MVP uses Vercel for the frontend, Render for the backend, Neon Postgres, Upstash Redis, and Redpanda Cloud in `us-east-1`. Redpanda Cloud topics are provisioned for `market.tick`, `order.created`, `order.filled`, `portfolio.updated`, `risk.updated`, and `audit.event`. Local Redpanda remains supported through Docker Compose.
+
+Secrets are managed only in the provider dashboards: Vercel environment variables, Render environment variables, Neon credentials, Upstash credentials, and Redpanda credentials. Do not commit provider secrets.
+
+Current public deployment notes:
+
+- Render `/actuator/health` returned `UP` on June 28, 2026 after the managed service configuration was connected.
+- Vercel must build with `VITE_API_BASE_URL=https://ledgerstream-backend-5rk9.onrender.com`.
+- Render must allow the Vercel origin with `BACKEND_CORS_ALLOWED_ORIGINS=https://ledger-stream.vercel.app`.
+- Quote and automatic fill flows require hosted market-data replay or another producer publishing `market.tick` events to Redpanda Cloud. Without ticks, latest quote and risk endpoints can return `404`, and market orders cannot complete the full fill path.
 
 ## Local Development
 
@@ -245,7 +264,7 @@ Demo account seeding is disabled by default. For local development only, set `DE
 - [Performance](docs/performance.md)
 - [Demo Script](docs/demo-script.md)
 
-The documented deployment path is Vercel for the frontend, Render for the backend, Neon for PostgreSQL, Upstash Redis, and Redpanda Cloud or a documented event-stream fallback for demos.
+The documented deployment path is Vercel for the frontend, Render for the backend, Neon for PostgreSQL, Upstash Redis, and Redpanda Cloud for Kafka-compatible events. See [Deployment](docs/deployment.md) for provider settings, verification commands, and current limitations.
 
 ## Security Checks
 
