@@ -149,6 +149,11 @@ Set production values in Render's environment variable manager:
 | `BACKEND_KAFKA_DEAD_LETTER_SUFFIX` | Optional | `.DLT` |
 | `BACKEND_MARKET_TICK_CONSUMER_ENABLED` | Optional | `true` with hosted Kafka, `false` for API-only demo |
 | `BACKEND_ORDER_CREATED_CONSUMER_ENABLED` | Optional | `true` with hosted Kafka, `false` for API-only demo |
+| `BACKEND_ARCHIVE_ENABLED` | Optional | `false` by default |
+| `BACKEND_ARCHIVE_BACKEND` | Optional | `filesystem` or `http-put` |
+| `BACKEND_ARCHIVE_LOCAL_ROOT` | Optional | `./data/archives` for local filesystem archives |
+| `BACKEND_ARCHIVE_HTTP_PUT_BASE_URL` | HTTP PUT archives only | Object-storage upload gateway or URL prefix that accepts PUT requests |
+| `BACKEND_ARCHIVE_HTTP_AUTHORIZATION_HEADER` | HTTP PUT archives only | Optional auth header value stored only as a secret |
 | `DEMO_SEED_ENABLED` | Demo only | `true` for controlled demo seeding |
 | `DEMO_USER_EMAIL` | Demo only | `demo@example.com` |
 | `DEMO_USER_PASSWORD` | Demo only | Stored as platform secret |
@@ -157,6 +162,27 @@ Set production values in Render's environment variable manager:
 The `production` profile requires real datasource, CORS, and JWT secret values. Do not rely on the local defaults in production.
 
 The backend defines custom Kafka producer and consumer factories that read `ledgerstream.kafka.*` properties. In Render, that means SASL/TLS values must be provided through the `BACKEND_KAFKA_*` environment variables above. `SPRING_KAFKA_PROPERTIES_SECURITY_PROTOCOL`, `SPRING_KAFKA_PROPERTIES_SASL_MECHANISM`, and `SPRING_KAFKA_PROPERTIES_SASL_JAAS_CONFIG` are useful for Spring Boot auto-configured clients, but they do not configure LedgerStream's custom factories by themselves.
+
+## Archive Exports
+
+Archive exports are optional and disabled by default. Admins can trigger a UTC daily portfolio-snapshot export with:
+
+```bash
+curl -sS -X POST "$BASE_URL/api/admin/archive/portfolio-snapshots?date=2026-01-02" \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+```
+
+Local development can use the filesystem sink:
+
+```bash
+BACKEND_ARCHIVE_ENABLED=true
+BACKEND_ARCHIVE_BACKEND=filesystem
+BACKEND_ARCHIVE_LOCAL_ROOT=./data/archives
+```
+
+Hosted deployments can use `BACKEND_ARCHIVE_BACKEND=http-put` with an object-storage-compatible upload gateway or URL prefix that accepts PUT requests. LedgerStream sends a plain HTTPS `PUT` request and can attach `BACKEND_ARCHIVE_HTTP_AUTHORIZATION_HEADER` when the gateway requires it. Native S3/R2/GCS request signing is intentionally not included in the MVP backend; use a managed gateway or keep archive exports disabled.
+
+Archive files contain portfolio snapshot metrics, user UUIDs, and portfolio UUIDs. They do not contain emails, passwords, access tokens, refresh tokens, API keys, raw request bodies, or raw client IP addresses.
 
 ## Database Migrations
 

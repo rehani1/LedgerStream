@@ -33,6 +33,7 @@ This document describes the implemented LedgerStream HTTP API and Kafka-compatib
 | Admin | `POST` | `/api/admin/market/replay/start` | Admin | Implemented. Mark deterministic replay state as running and record an audit event. |
 | Admin | `POST` | `/api/admin/market/replay/stop` | Admin | Implemented. Mark deterministic replay state as stopped and record an audit event. |
 | Admin | `GET` | `/api/admin/queue-health` | Admin | Implemented. Returns current queue-health integration status. |
+| Admin | `POST` | `/api/admin/archive/portfolio-snapshots?date=2026-01-02` | Admin | Implemented. Export daily portfolio snapshots to the configured archive sink. |
 | Observability | `GET` | `/actuator/health` | Public or internal | Health checks. |
 | Observability | `GET` | `/actuator/prometheus` | Internal | Prometheus metrics. |
 
@@ -507,6 +508,20 @@ The current MVP uses `mode: "backend_state"`. These endpoints do not spawn or ki
     "retryBackoff": "PT2S",
     "deadLetterSuffix": ".DLT"
   }
+}
+```
+
+`POST /api/admin/archive/portfolio-snapshots?date=2026-01-02` exports portfolio snapshot rows for the UTC day to the configured archive sink. The `date` parameter is optional and defaults to the current UTC date. Archive exports are disabled by default; disabled exports return `409`.
+
+```json
+{
+  "archiveType": "portfolio_snapshots",
+  "key": "portfolio-snapshots/date=2026-01-02/portfolio-snapshots-20260102T000000Z-20260103T000000Z.json",
+  "uri": "file:///app/data/archives/portfolio-snapshots/date=2026-01-02/portfolio-snapshots-20260102T000000Z-20260103T000000Z.json",
+  "sizeBytes": 2048,
+  "checksumSha256": "8f434346648f6b96df89dda901c5176b10a6d83961dd3c1ac88b59b2dc327aa4",
+  "exportedRecords": 12,
+  "exportedAt": "2026-01-03T01:00:00Z"
 }
 ```
 

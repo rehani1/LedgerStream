@@ -62,6 +62,7 @@ Detailed system design: [Architecture](docs/architecture.md)
 - Market order simulation with explicit rejection reasons and crossed limit-order simulation with pending cancellation support.
 - Transactional fill settlement that updates cash, positions, ledger entries, portfolio history, and risk snapshots.
 - Portfolio summary, positions, ledger, portfolio history, latest risk, and risk history APIs.
+- Optional admin-triggered portfolio snapshot archive exports to local filesystem or HTTP PUT storage gateways.
 - Structured JSON logs, request IDs, Prometheus metrics, and Grafana provisioning.
 - Kafka consumer retry policy with dead-letter topics for malformed or exhausted events.
 
@@ -101,7 +102,7 @@ Implemented groups:
 - Orders: create, list, get, cancel.
 - Portfolio: summary, positions, ledger, history.
 - Risk: latest snapshot and history.
-- Admin: replay status/start/stop and queue health.
+- Admin: replay status/start/stop, queue health, and archive exports.
 - Observability: health and Prometheus metrics.
 
 ## Testing Summary
@@ -110,7 +111,7 @@ Most recent local verification on June 29, 2026:
 
 | Area | Result |
 | --- | ---: |
-| Backend Maven tests | 142 passed |
+| Backend Maven tests | 147 passed |
 | Frontend Vitest tests | 16 passed |
 | Market-data worker pytest | 22 passed |
 | Frontend production build | Passed with existing Vite chunk-size warning |
@@ -171,6 +172,7 @@ Deployment guide: [Deployment](docs/deployment.md)
 - Refresh-token rotation and logout revocation.
 - User-scoped repository queries for orders, portfolio, positions, ledger, and risk.
 - Admin endpoints require `ADMIN`.
+- Archive exports are disabled by default and only expose user IDs, portfolio IDs, and portfolio snapshot metrics.
 - CORS is environment-driven and must use exact frontend origins.
 - Request logs omit bodies, query strings, authorization headers, cookies, passwords, access tokens, refresh tokens, API keys, and raw client IPs.
 - Dependabot and Dependency Review cover Maven, npm, and Python dependency changes.
@@ -186,6 +188,7 @@ Security details: [Security](docs/security.md)
 - Rate limits are in-memory per backend instance; Redis-backed distributed limits are future work.
 - Limit orders fill against the latest last price when crossed; there are no partial fills or time-in-force controls yet.
 - Refresh tokens are stored in browser `sessionStorage` for the MVP; HttpOnly cookies are the preferred production improvement.
+- Archive HTTP PUT support expects an object-storage upload gateway or URL prefix that accepts PUT requests; native cloud-provider request signing is not included.
 - Product screenshots and a 60-90 second demo video are placeholders until captured.
 
 ## Local Setup

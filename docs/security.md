@@ -15,6 +15,7 @@ LedgerStream is a paper-trading system only. It must not place real brokerage or
 | Duplicate order submission | `orders(user_id, idempotency_key)` is unique; duplicate requests return the existing order and do not create duplicate fills. |
 | Token or password disclosure through logs | Request logs exclude bodies, query strings, authorization headers, cookies, tokens, passwords, and raw client IPs. |
 | Malformed market data | Tick ingestion validates symbol, timestamp, positive prices, non-negative volume, and bid/ask ordering before cache or persistence updates. |
+| Archive data exposure | Archive exports are disabled by default, admin-only, and limited to portfolio snapshot metrics plus user and portfolio UUIDs. |
 | Vulnerable dependencies | Dependabot monitors Maven, npm, and Python dependencies; Dependency Review blocks pull requests that add high-severity vulnerable dependencies. |
 
 ## Auth Model
@@ -38,6 +39,7 @@ LedgerStream is a paper-trading system only. It must not place real brokerage or
 - Order, portfolio, position, ledger, and risk paths are user-scoped through authenticated principal IDs.
 - Missing or cross-user financial resources are reported as `404` to avoid leaking another user's resource existence.
 - Admin replay controls record audit events and do not accept shell commands, worker paths, or arbitrary process arguments.
+- Admin archive exports require `ADMIN` and export only the configured UTC date range.
 
 ## Token Storage Tradeoff
 
@@ -79,8 +81,17 @@ Audit metadata is limited to operational identifiers and safe state such as orde
 - `.env.example` and `application.yml` use non-secret placeholders only.
 - Local `.env` files must not be committed.
 - Production values for `BACKEND_JWT_SECRET`, database credentials, Redis credentials, broker credentials, and deployment tokens must come from the hosting platform secret manager.
+- `BACKEND_ARCHIVE_HTTP_AUTHORIZATION_HEADER` is treated as a secret and must be stored only in the platform secret manager when HTTP PUT archives are enabled.
 - Demo account seeding is disabled by default and only available under `local` or `dev` profiles when explicitly enabled.
 - Seed passwords are read from environment configuration, hashed with BCrypt before storage, and never logged.
+
+## Archive Export Security
+
+Archive exports are optional and disabled by default with `BACKEND_ARCHIVE_ENABLED=false`. When enabled, `POST /api/admin/archive/portfolio-snapshots` writes UTC daily portfolio snapshot archives through the configured sink.
+
+The local filesystem sink normalizes archive keys and rejects path traversal outside `BACKEND_ARCHIVE_LOCAL_ROOT`. The HTTP PUT sink is intended for an object-storage-compatible upload gateway or URL prefix that accepts PUT requests. It does not log archive contents or authorization headers, and it does not implement native cloud-provider request signing.
+
+Portfolio snapshot archives contain user UUIDs, portfolio UUIDs, equity, cash, exposure, realized P&L, unrealized P&L, and timestamps. They do not contain emails, password hashes, access tokens, refresh tokens, API keys, request bodies, user agents, raw IP addresses, or raw market-data payloads.
 
 ## Dependency And Repository Scanning
 
