@@ -1,15 +1,31 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type FormEvent } from 'react';
+import { ArrowDownToLine, ArrowUpFromLine } from 'lucide-react';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { getPortfolioHistory, getPortfolioSummary, listLedgerEntries, listPortfolioPositions } from '../api/portfolio';
+import {
+  depositCash,
+  getPortfolioHistory,
+  getPortfolioSummary,
+  listLedgerEntries,
+  listPortfolioPositions,
+  withdrawCash
+} from '../api/portfolio';
+import type { CashTransferType } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 
 const ledgerPageSize = 10;
+const cashTransferTypes: CashTransferType[] = ['DEPOSIT', 'WITHDRAWAL'];
 
 export function PortfolioPage() {
   const auth = useAuth();
+  const queryClient = useQueryClient();
   const [ledgerPage, setLedgerPage] = useState(0);
+  const [cashTransferType, setCashTransferType] = useState<CashTransferType>('DEPOSIT');
+  const [cashAmount, setCashAmount] = useState('25000.00');
+  const [cashNote, setCashNote] = useState('Demo paper funding');
+  const [cashFormError, setCashFormError] = useState<string | null>(null);
+  const [cashResultMessage, setCashResultMessage] = useState<string | null>(null);
   const accessToken = auth.accessToken ?? '';
   const userId = auth.user?.id ?? 'anonymous';
   const queriesEnabled = auth.status === 'authenticated' && Boolean(auth.accessToken);
@@ -38,6 +54,61 @@ export function PortfolioPage() {
     queryFn: () => getPortfolioHistory(accessToken, 0, 50),
     enabled: queriesEnabled
   });
+
+  function invalidatePortfolioState() {
+    setLedgerPage(0);
+    queryClient.invalidateQueries({ queryKey: ['portfolio-summary', userId] });
+    queryClient.invalidateQueries({ queryKey: ['portfolio-positions', userId] });
+    queryClient.invalidateQueries({ queryKey: ['portfolio-ledger', userId] });
+    queryClient.invalidateQueries({ queryKey: ['portfolio-history', userId] });
+    queryClient.invalidateQueries({ queryKey: ['risk-latest', userId] });
+    queryClient.invalidateQueries({ queryKey: ['risk-history', userId] });
+  }
+
+  const cashTransferMutation = useMutation({
+    mutationFn: (payload: { transferType: CashTransferType; amount: number; note: string | null; idempotencyKey: string }) => {
+      const request = { amount: payload.amount, note: payload.note };
+      if (payload.transferType === 'DEPOSIT') {
+        return depositCash(request, accessToken, payload.idempotencyKey);
+      }
+      return withdrawCash(request, accessToken, payload.idempotencyKey);
+    },
+    onSuccess: (response) => {
+      setCashFormError(null);
+      setCashResultMessage(
+        `${formatCashTransferType(response.transferType)} recorded. Cash balance ${formatMoney(
+          response.portfolio.cash,
+          response.portfolio.baseCurrency
+        )}.`
+      );
+      setCashAmount('');
+      setCashNote('');
+      invalidatePortfolioState();
+    }
+  });
+
+  function handleCashSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const parsedAmount = parseCashAmount(cashAmount);
+    if (typeof parsedAmount === 'string') {
+      setCashFormError(parsedAmount);
+      return;
+    }
+    if (cashTransferType === 'WITHDRAWAL' && summary && parsedAmount > summary.cash) {
+      setCashFormError(`Cash available is ${formatMoney(summary.cash, summary.baseCurrency)}.`);
+      return;
+    }
+
+    setCashFormError(null);
+    setCashResultMessage(null);
+    cashTransferMutation.mutate({
+      transferType: cashTransferType,
+      amount: parsedAmount,
+      note: cashNote.trim() === '' ? null : cashNote.trim(),
+      idempotencyKey: makeCashIdempotencyKey(cashTransferType)
+    });
+  }
 
   const summary = summaryQuery.data;
   const positions = positionsQuery.data ?? [];
@@ -110,6 +181,82 @@ export function PortfolioPage() {
           <span className="metric-label">Positions priced</span>
           <strong>{summary ? `${summary.pricedPositionsCount}/${summary.positionsCount}` : '—'}</strong>
         </article>
+      </div>
+
+      <div className="cash-workspace" aria-label="Paper cash controls">
+        <form className="form-panel cash-transfer-panel" onSubmit={handleCashSubmit} aria-label="Paper cash" noValidate>
+          <div className="table-heading compact-heading">
+            <h2>Paper Cash</h2>
+            <span>{formatCashTransferType(cashTransferType)}</span>
+          </div>
+
+          <fieldset className="segmented-field">
+            <legend>Action</legend>
+            <div className="segmented-control">
+              {cashTransferTypes.map((availableType) => (
+                <button
+                  key={availableType}
+                  type="button"
+                  className={cashTransferType === availableType ? 'active' : undefined}
+                  aria-pressed={cashTransferType === availableType}
+                  onClick={() => setCashTransferType(availableType)}
+                  disabled={cashTransferMutation.isPending}
+                >
+                  {formatCashTransferType(availableType)}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+
+          <label>
+            Amount
+            <input
+              type="number"
+              min="0.01"
+              max="1000000"
+              step="0.01"
+              inputMode="decimal"
+              value={cashAmount}
+              onChange={(event) => setCashAmount(event.target.value)}
+              disabled={cashTransferMutation.isPending}
+            />
+          </label>
+
+          <label>
+            Note
+            <input
+              type="text"
+              maxLength={120}
+              value={cashNote}
+              onChange={(event) => setCashNote(event.target.value)}
+              disabled={cashTransferMutation.isPending}
+            />
+          </label>
+
+          <button type="submit" className="primary-button icon-submit-button" disabled={cashTransferMutation.isPending}>
+            {cashTransferType === 'DEPOSIT' ? (
+              <ArrowDownToLine aria-hidden="true" size={18} />
+            ) : (
+              <ArrowUpFromLine aria-hidden="true" size={18} />
+            )}
+            <span>
+              {cashTransferMutation.isPending
+                ? 'Recording'
+                : `${formatCashTransferType(cashTransferType)} cash`}
+            </span>
+          </button>
+
+          {cashFormError && <p className="form-error" role="alert">{cashFormError}</p>}
+          {cashTransferMutation.error instanceof Error && (
+            <p className="form-error" role="alert">{cashTransferMutation.error.message}</p>
+          )}
+          {cashResultMessage && (
+            <div className="order-result" aria-live="polite">
+              <strong>{cashResultMessage}</strong>
+              <small>{formatDateTime(new Date().toISOString())}</small>
+            </div>
+          )}
+        </form>
       </div>
 
       <div className="chart-panel">
@@ -315,6 +462,36 @@ function formatEntryType(entryType: string) {
     .split('_')
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
+}
+
+function formatCashTransferType(transferType: CashTransferType) {
+  return transferType.charAt(0) + transferType.slice(1).toLowerCase();
+}
+
+function parseCashAmount(value: string) {
+  const trimmedValue = value.trim();
+  if (!/^\d+(\.\d{1,2})?$/.test(trimmedValue)) {
+    return 'Enter a dollar amount with cents only.';
+  }
+
+  const amount = Number(trimmedValue);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return 'Enter an amount greater than zero.';
+  }
+  if (amount > 1000000) {
+    return 'Enter an amount of $1,000,000.00 or less.';
+  }
+
+  return amount;
+}
+
+function makeCashIdempotencyKey(transferType: CashTransferType) {
+  const prefix = transferType === 'DEPOSIT' ? 'cash-deposit' : 'cash-withdrawal';
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `${prefix}:${crypto.randomUUID()}`;
+  }
+
+  return `${prefix}:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function formatDateTime(timestamp: string) {

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, vi } from 'vitest';
 
@@ -23,6 +23,41 @@ describe('PortfolioPage', () => {
       'fetch',
       vi.fn(async (input: RequestInfo | URL) => {
         const url = String(input);
+
+        if (url.endsWith('/api/portfolio/cash/deposit')) {
+          return jsonResponse({
+            transferId: '00000000-0000-0000-0000-000000000801',
+            transferType: 'DEPOSIT',
+            amount: 1500,
+            created: true,
+            portfolio: {
+              portfolioId: '00000000-0000-0000-0000-000000000201',
+              baseCurrency: 'USD',
+              cash: 51100,
+              marketValue: 1874.2,
+              totalEquity: 52974.2,
+              realizedPnl: 124.5,
+              unrealizedPnl: -12.8,
+              positionsCount: 1,
+              pricedPositionsCount: 1,
+              updatedAt: '2026-01-02T14:45:00Z'
+            },
+            ledgerEntry: {
+              id: '00000000-0000-0000-0000-000000000901',
+              entryType: 'CASH_DEPOSIT',
+              cashDelta: 1500,
+              symbol: null,
+              quantityDelta: 0,
+              price: null,
+              orderId: null,
+              fillId: null,
+              createdAt: '2026-01-02T14:45:00Z',
+              metadata: {
+                transferType: 'DEPOSIT'
+              }
+            }
+          });
+        }
 
         if (url.endsWith('/api/portfolio')) {
           return jsonResponse({
@@ -172,6 +207,32 @@ describe('PortfolioPage', () => {
 
     expect(await screen.findByText('Sell Fill')).toBeInTheDocument();
     expect(screen.getByText('Page 2 of 2')).toBeInTheDocument();
+  });
+
+  it('submits a paper cash deposit', async () => {
+    const user = userEvent.setup();
+    renderPortfolioPage();
+
+    await screen.findByRole('form', { name: /paper cash/i });
+    const amountInput = screen.getByLabelText(/amount/i);
+    await user.clear(amountInput);
+    await user.type(amountInput, '1500.00');
+    await user.click(screen.getByRole('button', { name: /deposit cash/i }));
+
+    expect(await screen.findByText(/Deposit recorded/i)).toBeInTheDocument();
+    expect(screen.getByText(/Cash balance \$51,100.00/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/portfolio/cash/deposit'),
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({
+            amount: 1500,
+            note: 'Demo paper funding'
+          })
+        })
+      );
+    });
   });
 });
 

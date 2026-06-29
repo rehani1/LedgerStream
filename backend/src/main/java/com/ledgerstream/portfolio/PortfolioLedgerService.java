@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import com.ledgerstream.domain.model.CashTransfer;
 import com.ledgerstream.domain.model.Fill;
 import com.ledgerstream.domain.model.LedgerEntry;
 import com.ledgerstream.domain.model.LedgerEntryType;
@@ -41,6 +42,23 @@ public class PortfolioLedgerService {
 		return ledgerEntryRepository.save(entry);
 	}
 
+	@Transactional(propagation = Propagation.MANDATORY)
+	public LedgerEntry appendCashTransfer(
+		Portfolio portfolio,
+		CashTransfer transfer,
+		LedgerEntryType entryType,
+		BigDecimal cashDelta
+	) {
+		LedgerEntry entry = new LedgerEntry();
+		entry.setUser(portfolio.getUser());
+		entry.setPortfolio(portfolio);
+		entry.setEntryType(entryType);
+		entry.setCashDelta(cashDelta);
+		entry.setQuantityDelta(BigDecimal.ZERO);
+		entry.setMetadata(metadata(transfer));
+		return ledgerEntryRepository.save(entry);
+	}
+
 	private LedgerEntryType entryType(OrderSide side) {
 		return side == OrderSide.BUY ? LedgerEntryType.BUY_FILL : LedgerEntryType.SELL_FILL;
 	}
@@ -50,6 +68,17 @@ public class PortfolioLedgerService {
 		metadata.put("orderSide", fill.getOrder().getSide().name());
 		metadata.put("orderType", fill.getOrder().getOrderType().name());
 		metadata.put("fee", fill.getFee());
+		return metadata;
+	}
+
+	private Map<String, Object> metadata(CashTransfer transfer) {
+		Map<String, Object> metadata = new LinkedHashMap<>();
+		metadata.put("transferId", transfer.getId().toString());
+		metadata.put("transferType", transfer.getTransferType().name());
+		metadata.put("amount", transfer.getAmount());
+		if (transfer.getNote() != null && !transfer.getNote().isBlank()) {
+			metadata.put("note", transfer.getNote());
+		}
 		return metadata;
 	}
 }

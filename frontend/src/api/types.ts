@@ -76,6 +76,8 @@ export type PortfolioPosition = {
 
 export type LedgerEntryType =
   | 'INITIAL_DEPOSIT'
+  | 'CASH_DEPOSIT'
+  | 'CASH_WITHDRAWAL'
   | 'BUY_FILL'
   | 'SELL_FILL'
   | 'FEE'
@@ -121,6 +123,22 @@ export type PortfolioHistoryResponse = {
   size: number;
   totalElements: number;
   totalPages: number;
+};
+
+export type CashTransferType = 'DEPOSIT' | 'WITHDRAWAL';
+
+export type CashTransferRequest = {
+  amount: number;
+  note?: string | null;
+};
+
+export type CashTransferResponse = {
+  transferId: string;
+  transferType: CashTransferType;
+  amount: number;
+  created: boolean;
+  portfolio: PortfolioSummary;
+  ledgerEntry: LedgerEntry;
 };
 
 export type OrderSide = 'BUY' | 'SELL';

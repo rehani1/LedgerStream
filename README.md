@@ -11,6 +11,7 @@ First-screen engineering signals:
 - Event-driven Spring Boot backend with Redpanda/Kafka-compatible topics.
 - Real-time market data path from deterministic Python replay to Redis, PostgreSQL, and SSE clients.
 - Idempotent order API using `Idempotency-Key` and `orders(user_id, idempotency_key)`.
+- Idempotent paper-cash deposit and withdrawal demo with ledger-backed reconciliation.
 - Append-only portfolio ledger for cash and position mutations.
 - PostgreSQL source of truth, Redis latest quote cache, Redpanda event stream.
 - Backend, frontend, worker, integration, E2E, and k6 load-test coverage.
@@ -59,6 +60,7 @@ Detailed system design: [Architecture](docs/architecture.md)
 - Deterministic fixture backtests for buy-and-hold and moving-average crossover strategies.
 - Kafka-compatible JSON event contracts for `market.tick`, `order.created`, `order.filled`, `portfolio.updated`, `risk.updated`, and `audit.event`.
 - Idempotent paper-order creation, user-scoped order history, and cancellation for pending orders.
+- Paper-cash deposit and withdrawal controls for demo account funding.
 - Market order simulation with explicit rejection reasons and crossed limit-order simulation with pending cancellation support.
 - Transactional fill settlement that updates cash, positions, ledger entries, portfolio history, and risk snapshots.
 - Portfolio summary, positions, ledger, portfolio history, latest risk, and risk history APIs.
@@ -83,7 +85,7 @@ LedgerStream models paper trading with explicit accounting boundaries:
 
 - `users` and `refresh_tokens` store authentication state.
 - `symbols` and `price_ticks` store supported instruments and market data history.
-- `portfolios`, `positions`, `orders`, and `fills` store trading state.
+- `portfolios`, `cash_transfers`, `positions`, `orders`, and `fills` store trading state.
 - `ledger_entries` is append-only and records cash and quantity deltas.
 - `portfolio_snapshots` stores equity, cash, exposure, and P&L history.
 - `risk_snapshots` stores portfolio exposure and concentration snapshots.
@@ -111,8 +113,8 @@ Most recent local verification on June 29, 2026:
 
 | Area | Result |
 | --- | ---: |
-| Backend Maven tests | 147 passed |
-| Frontend Vitest tests | 16 passed |
+| Backend Maven tests | 156 run, 0 failures, 2 skipped |
+| Frontend Vitest tests | 17 passed |
 | Market-data worker pytest | 22 passed |
 | Frontend production build | Passed with existing Vite chunk-size warning |
 

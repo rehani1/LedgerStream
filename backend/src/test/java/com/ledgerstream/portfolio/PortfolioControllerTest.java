@@ -1,10 +1,13 @@
 package com.ledgerstream.portfolio;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -15,8 +18,11 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.ledgerstream.auth.AuthenticatedUser;
+import com.ledgerstream.domain.model.CashTransferType;
 import com.ledgerstream.domain.model.LedgerEntryType;
 import com.ledgerstream.domain.model.UserRole;
+import com.ledgerstream.portfolio.dto.CashTransferRequest;
+import com.ledgerstream.portfolio.dto.CashTransferResponse;
 import com.ledgerstream.portfolio.dto.LedgerEntryResponse;
 import com.ledgerstream.portfolio.dto.LedgerPageResponse;
 import com.ledgerstream.portfolio.dto.PortfolioHistoryResponse;
@@ -27,6 +33,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
@@ -48,6 +55,9 @@ class PortfolioControllerTest {
 
 	@MockitoBean
 	private PortfolioSnapshotService portfolioSnapshotService;
+
+	@MockitoBean
+	private PortfolioCashService portfolioCashService;
 
 	@Test
 	void portfolioSummaryRequiresAuthentication() throws Exception {
@@ -137,6 +147,60 @@ class PortfolioControllerTest {
 			.andExpect(jsonPath("$.snapshots[0].unrealizedPnl").value(100.00));
 	}
 
+	@Test
+	void depositCashReturnsCreatedTransfer() throws Exception {
+		CashTransferResponse response = cashTransferResponse(true, LedgerEntryType.CASH_DEPOSIT, new BigDecimal("25000.00"));
+		when(portfolioCashService.deposit(
+			any(AuthenticatedUser.class),
+			eq("cash-key-1"),
+			any(CashTransferRequest.class),
+			eq("cash-request-1")
+		)).thenReturn(response);
+
+		mockMvc.perform(post("/api/portfolio/cash/deposit")
+				.with(authentication(authenticatedUser()))
+				.header("Idempotency-Key", "cash-key-1")
+				.header("X-Request-ID", "cash-request-1")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(cashTransferJson("25000.00")))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.created").value(true))
+			.andExpect(jsonPath("$.transferType").value("DEPOSIT"))
+			.andExpect(jsonPath("$.amount").value(25000.00))
+			.andExpect(jsonPath("$.portfolio.cash").value(25000.00))
+			.andExpect(jsonPath("$.ledgerEntry.entryType").value("CASH_DEPOSIT"))
+			.andExpect(jsonPath("$.ledgerEntry.cashDelta").value(25000.00));
+
+		verify(portfolioCashService).deposit(
+			any(AuthenticatedUser.class),
+			eq("cash-key-1"),
+			any(CashTransferRequest.class),
+			eq("cash-request-1")
+		);
+	}
+
+	@Test
+	void duplicateWithdrawalReturnsOkTransfer() throws Exception {
+		CashTransferResponse response = cashTransferResponse(false, LedgerEntryType.CASH_WITHDRAWAL, new BigDecimal("-500.00"));
+		when(portfolioCashService.withdraw(
+			any(AuthenticatedUser.class),
+			eq("cash-key-2"),
+			any(CashTransferRequest.class),
+			anyString()
+		)).thenReturn(response);
+
+		mockMvc.perform(post("/api/portfolio/cash/withdraw")
+				.with(authentication(authenticatedUser()))
+				.header("Idempotency-Key", "cash-key-2")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(cashTransferJson("500.00")))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.created").value(false))
+			.andExpect(jsonPath("$.transferType").value("WITHDRAWAL"))
+			.andExpect(jsonPath("$.ledgerEntry.entryType").value("CASH_WITHDRAWAL"))
+			.andExpect(jsonPath("$.ledgerEntry.cashDelta").value(-500.00));
+	}
+
 	private PortfolioPositionResponse positionResponse() {
 		return new PortfolioPositionResponse(
 			UUID.randomUUID(),
@@ -167,6 +231,52 @@ class PortfolioControllerTest {
 			NOW,
 			Map.of("orderSide", "BUY", "orderType", "MARKET", "fee", new BigDecimal("0.00"))
 		);
+	}
+
+	private CashTransferResponse cashTransferResponse(boolean created, LedgerEntryType entryType, BigDecimal cashDelta) {
+		BigDecimal cash = entryType == LedgerEntryType.CASH_DEPOSIT ? cashDelta : new BigDecimal("24500.00");
+		CashTransferType transferType = entryType == LedgerEntryType.CASH_DEPOSIT
+			? CashTransferType.DEPOSIT
+			: CashTransferType.WITHDRAWAL;
+		return new CashTransferResponse(
+			UUID.randomUUID(),
+			transferType,
+			cashDelta.abs(),
+			created,
+			new PortfolioSummaryResponse(
+				UUID.randomUUID(),
+				"USD",
+				cash,
+				new BigDecimal("0.00"),
+				cash,
+				new BigDecimal("0.00"),
+				new BigDecimal("0.00"),
+				0,
+				0,
+				NOW
+			),
+			new LedgerEntryResponse(
+				UUID.randomUUID(),
+				entryType,
+				cashDelta,
+				null,
+				new BigDecimal("0.000000"),
+				null,
+				null,
+				null,
+				NOW,
+				Map.of("transferType", transferType.name())
+			)
+		);
+	}
+
+	private String cashTransferJson(String amount) {
+		return """
+			{
+			  "amount": %s,
+			  "note": "Demo paper cash movement"
+			}
+			""".formatted(amount);
 	}
 
 	private PortfolioSnapshotResponse snapshotResponse() {
