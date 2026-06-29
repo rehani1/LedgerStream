@@ -9,6 +9,9 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
+import com.ledgerstream.domain.model.CashTransfer;
+import com.ledgerstream.domain.model.CashTransferStatus;
+import com.ledgerstream.domain.model.CashTransferType;
 import com.ledgerstream.domain.model.AssetType;
 import com.ledgerstream.domain.model.Fill;
 import com.ledgerstream.domain.model.LedgerEntry;
@@ -96,6 +99,44 @@ class PortfolioLedgerServiceTest {
 		assertThat(entry.getCashDelta()).isEqualByComparingTo("749.44");
 		assertThat(entry.getQuantityDelta()).isEqualByComparingTo("-4.000000");
 		assertThat(entry.getMetadata()).containsEntry("orderSide", "SELL");
+	}
+
+	@Test
+	void appendCashTransferCreatesCashLedgerEntry() {
+		CashTransfer transfer = cashTransfer(CashTransferType.DEPOSIT, new BigDecimal("25000.00"));
+		when(ledgerEntryRepository.save(any(LedgerEntry.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+		LedgerEntry entry = ledgerService.appendCashTransfer(
+			portfolio,
+			transfer,
+			LedgerEntryType.CASH_DEPOSIT,
+			new BigDecimal("25000.00")
+		);
+
+		assertThat(entry.getUser()).isEqualTo(user);
+		assertThat(entry.getPortfolio()).isEqualTo(portfolio);
+		assertThat(entry.getEntryType()).isEqualTo(LedgerEntryType.CASH_DEPOSIT);
+		assertThat(entry.getCashDelta()).isEqualByComparingTo("25000.00");
+		assertThat(entry.getSymbol()).isNull();
+		assertThat(entry.getQuantityDelta()).isEqualByComparingTo("0");
+		assertThat(entry.getPrice()).isNull();
+		assertThat(entry.getMetadata()).containsEntry("transferId", transfer.getId().toString());
+		assertThat(entry.getMetadata()).containsEntry("transferType", "DEPOSIT");
+		assertThat(entry.getMetadata()).containsEntry("amount", new BigDecimal("25000.00"));
+		assertThat(entry.getMetadata()).containsEntry("note", "demo cash");
+	}
+
+	private CashTransfer cashTransfer(CashTransferType transferType, BigDecimal amount) {
+		CashTransfer transfer = new CashTransfer();
+		transfer.setId(UUID.randomUUID());
+		transfer.setUser(user);
+		transfer.setPortfolio(portfolio);
+		transfer.setTransferType(transferType);
+		transfer.setAmount(amount);
+		transfer.setStatus(CashTransferStatus.COMPLETED);
+		transfer.setIdempotencyKey("cash-key-1");
+		transfer.setNote("demo cash");
+		return transfer;
 	}
 
 	private Fill fill(TradeOrder order, BigDecimal price, BigDecimal quantity) {

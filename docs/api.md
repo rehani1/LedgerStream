@@ -27,6 +27,8 @@ This document describes the implemented LedgerStream HTTP API and Kafka-compatib
 | Portfolio | `GET` | `/api/portfolio/positions` | User | Implemented. Position list with quote-derived valuations. |
 | Portfolio | `GET` | `/api/portfolio/ledger?page=0&size=50` | User | Implemented. Paginated append-only ledger entries. |
 | Portfolio | `GET` | `/api/portfolio/history?page=0&size=50` | User | Implemented. Historical portfolio equity, cash, exposure, and P&L snapshots. |
+| Portfolio | `POST` | `/api/portfolio/cash/deposit` | User | Implemented. Paper cash deposit. Requires `Idempotency-Key`. |
+| Portfolio | `POST` | `/api/portfolio/cash/withdraw` | User | Implemented. Paper cash withdrawal. Requires `Idempotency-Key`. |
 | Risk | `GET` | `/api/portfolio/risk` | User | Implemented. Latest risk snapshot. |
 | Risk | `GET` | `/api/portfolio/risk/history?page=0&size=50` | User | Implemented. Historical risk snapshots. |
 | Admin | `GET` | `/api/admin/market/replay/status` | Admin | Implemented. Return backend replay-control state. |
@@ -58,7 +60,7 @@ Authenticated endpoints require:
 Authorization: Bearer <accessToken>
 ```
 
-Order creation also requires:
+Order creation and paper cash transfers also require:
 
 ```http
 Idempotency-Key: <stable-client-key>
@@ -312,6 +314,55 @@ First submissions return `201 Created`; duplicate idempotency submissions return
 Portfolio endpoints are authenticated and user-scoped. Missing portfolios return `404`; one user cannot request another user's positions or ledger because all reads are filtered by the authenticated user ID.
 
 Position valuation uses the latest quote `last` price when available. If no latest quote exists, the API falls back to average cost for valuation, sets `lastPrice` to `null`, uses `valuationSource: "COST_BASIS_FALLBACK"`, and reports `unrealizedPnl: 0.00` for that position.
+
+Paper cash endpoints support demo funding without any real payment rails. `POST /api/portfolio/cash/deposit` and `POST /api/portfolio/cash/withdraw` require an `Idempotency-Key`, accept an amount with at most two decimal places, cap each movement at `1000000.00`, append a cash ledger row, record portfolio and risk snapshots, and return `201 Created` for a new movement or `200 OK` for an idempotent replay. Withdrawals that would make cash negative return `409`.
+
+Cash transfer request:
+
+```json
+{
+  "amount": 25000.00,
+  "note": "Demo paper funding"
+}
+```
+
+Cash transfer response:
+
+```json
+{
+  "transferId": "00000000-0000-0000-0000-000000000200",
+  "transferType": "DEPOSIT",
+  "amount": 25000.00,
+  "created": true,
+  "portfolio": {
+    "portfolioId": "00000000-0000-0000-0000-000000000100",
+    "baseCurrency": "USD",
+    "cash": 25000.00,
+    "marketValue": 0.00,
+    "totalEquity": 25000.00,
+    "realizedPnl": 0.00,
+    "unrealizedPnl": 0.00,
+    "positionsCount": 0,
+    "pricedPositionsCount": 0,
+    "updatedAt": "2026-01-02T14:35:00Z"
+  },
+  "ledgerEntry": {
+    "id": "00000000-0000-0000-0000-000000000201",
+    "entryType": "CASH_DEPOSIT",
+    "cashDelta": 25000.00,
+    "symbol": null,
+    "quantityDelta": 0.000000,
+    "price": null,
+    "orderId": null,
+    "fillId": null,
+    "createdAt": "2026-01-02T14:35:00Z",
+    "metadata": {
+      "transferType": "DEPOSIT",
+      "amount": 25000.00
+    }
+  }
+}
+```
 
 `GET /api/portfolio`
 

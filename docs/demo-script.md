@@ -38,14 +38,16 @@ As of the June 28, 2026 smoke test, the Render backend health endpoint was `UP`;
 
 1. Open the deployed or local frontend.
 2. Log in with a demo account.
-3. Start deterministic market replay or verify it is already running.
-4. Watch live quote updates.
-5. Submit a paper market or limit order.
-6. Show the order status and fill.
-7. Show portfolio cash, position, and equity-history updates.
-8. Show append-only ledger entries.
-9. Show risk metrics.
-10. Show Prometheus or Grafana observability.
+3. Open Portfolio and deposit paper cash for the demo account.
+4. Optionally withdraw a small paper amount to show cash ledger reversal behavior.
+5. Start deterministic market replay or verify it is already running.
+6. Watch live quote updates.
+7. Submit a paper market or limit order.
+8. Show the order status and fill.
+9. Show portfolio cash, position, and equity-history updates.
+10. Show append-only ledger entries.
+11. Show risk metrics.
+12. Show Prometheus or Grafana observability.
 
 ## Screenshot Placeholders
 
@@ -72,10 +74,11 @@ Target length: 75 seconds.
 | 0-8s | README and live links | "LedgerStream is a deployed paper-trading platform with a Spring Boot event-driven backend, React dashboard, PostgreSQL, Redis, and Redpanda." |
 | 8-15s | Login/register | "The demo starts with authenticated access. The backend uses JWT access tokens and refresh-token rotation." |
 | 15-25s | Dashboard quotes | "Market data enters through deterministic replay, is published as `market.tick`, cached in Redis, persisted in PostgreSQL, and streamed to the dashboard." |
-| 25-37s | Order ticket | "Orders require an `Idempotency-Key`, so duplicate submissions return the existing order instead of creating duplicate fills." |
-| 37-48s | Order history/fill | "The backend publishes `order.created`; the execution consumer uses the latest quote and writes the fill transactionally." |
-| 48-58s | Portfolio and ledger | "Cash, positions, fills, portfolio history, and append-only ledger entries are updated together inside the database transaction." |
-| 58-66s | Risk dashboard | "Risk snapshots track total equity, cash, gross exposure, concentration, and unrealized P&L." |
+| 25-33s | Portfolio cash | "Paper cash deposits and withdrawals are idempotent, user-scoped, and journaled in the append-only ledger." |
+| 33-43s | Order ticket | "Orders require an `Idempotency-Key`, so duplicate submissions return the existing order instead of creating duplicate fills." |
+| 43-52s | Order history/fill | "The backend publishes `order.created`; the execution consumer uses the latest quote and writes the fill transactionally." |
+| 52-60s | Portfolio and ledger | "Cash, positions, fills, portfolio history, and append-only ledger entries are updated together inside the database transaction." |
+| 60-66s | Risk dashboard | "Risk snapshots track total equity, cash, gross exposure, concentration, and unrealized P&L." |
 | 66-75s | Grafana and CI | "The system exposes Prometheus metrics, structured logs, Grafana dashboards, CI, dependency scanning, and measured k6 baseline results." |
 
 If the public market-data producer is not running yet, record the video against the seeded local Docker Compose stack and state that the hosted deployment uses the same service boundaries.
@@ -88,13 +91,15 @@ Use this when validating the deployed backend before browser testing. Do not pri
 2. Call `GET /api/me`.
 3. Call `GET /api/symbols`.
 4. Call `GET /api/portfolio`.
-5. Call `GET /api/portfolio/positions`.
-6. Call `GET /api/portfolio/ledger`.
-7. Call `GET /api/portfolio/history`.
-8. Call `GET /api/symbols/AAPL/quote`.
-9. Submit a small market or limit order with a unique `Idempotency-Key`.
-10. Call `GET /api/orders`.
-11. Logout with `POST /api/auth/logout`.
+5. Call `POST /api/portfolio/cash/deposit` with a unique `Idempotency-Key`.
+6. Call `POST /api/portfolio/cash/withdraw` with a unique `Idempotency-Key` for a smaller amount.
+7. Call `GET /api/portfolio/positions`.
+8. Call `GET /api/portfolio/ledger`.
+9. Call `GET /api/portfolio/history`.
+10. Call `GET /api/symbols/AAPL/quote`.
+11. Submit a small market or limit order with a unique `Idempotency-Key`.
+12. Call `GET /api/orders`.
+13. Logout with `POST /api/auth/logout`.
 
 If quote data has not been replayed into Redpanda/PostgreSQL/Redis yet, `GET /api/symbols/AAPL/quote` can return `404`. If the hosted Kafka credentials are missing or not mapped to the backend's `BACKEND_KAFKA_*` environment variables, order submission can stall or fail because the backend cannot publish `order.created`.
 
@@ -103,6 +108,7 @@ If quote data has not been replayed into Redpanda/PostgreSQL/Redis yet, `GET /ap
 - Public backend health returns `UP`.
 - Vercel is rebuilt with `VITE_API_BASE_URL=https://ledgerstream-backend-5rk9.onrender.com`.
 - Render CORS allows `https://ledger-stream.vercel.app`.
+- A demo account has paper cash from local seed data or the Portfolio cash panel.
 - Demo credentials are either self-registered for the session or seeded only in a controlled demo environment.
 - A market-data producer publishes deterministic ticks to Redpanda Cloud, or the demo is run locally with the Compose worker profile.
 - Screenshot placeholders above are replaced with real screenshots that do not expose secrets.
@@ -127,4 +133,4 @@ docker compose --profile worker up --build market-data-worker
 
 After logging in locally, open the dashboard to see supported symbols, latest quote rows, stream connection state, and the selected symbol price chart. The frontend reads historical quote data from `/api/symbols/{ticker}/history` and consumes the authenticated SSE quote stream with the current access token.
 
-Open the orders route, select a symbol, choose buy or sell, choose market or limit, submit a paper order, and watch the order history show pending, filled, rejected, or cancelled status. Then open the portfolio route to confirm cash, total equity, realized and unrealized P&L, equity history, open positions, and paginated ledger entries update from the backend portfolio APIs. Open the risk route to show total equity, gross exposure, largest-position concentration, unrealized P&L, and the historical snapshot chart.
+Open the portfolio route, deposit paper cash, optionally withdraw a smaller paper amount, and confirm the ledger shows `Cash Deposit` and `Cash Withdrawal` rows. Then open the orders route, select a symbol, choose buy or sell, choose market or limit, submit a paper order, and watch the order history show pending, filled, rejected, or cancelled status. Return to the portfolio route to confirm cash, total equity, realized and unrealized P&L, equity history, open positions, and paginated ledger entries update from the backend portfolio APIs. Open the risk route to show total equity, gross exposure, largest-position concentration, unrealized P&L, and the historical snapshot chart.

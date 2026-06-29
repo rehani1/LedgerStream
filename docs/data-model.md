@@ -16,6 +16,7 @@ erDiagram
   users ||--|| portfolios : owns
   users ||--o{ refresh_tokens : has
   users ||--o{ orders : places
+  users ||--o{ cash_transfers : funds
   users ||--o{ positions : holds
   users ||--o{ ledger_entries : records
   users ||--o{ portfolio_snapshots : has
@@ -30,7 +31,9 @@ erDiagram
   orders ||--o{ ledger_entries : reconciles
   fills ||--o{ ledger_entries : settles
   portfolios ||--o{ ledger_entries : contains
+  portfolios ||--o{ cash_transfers : funds
   portfolios ||--o{ portfolio_snapshots : snapshots
+  cash_transfers ||--o| ledger_entries : journals
 ```
 
 ## Table Catalog
@@ -42,6 +45,7 @@ erDiagram
 | `symbols` | Supported tradable instruments. | Unique uppercase `ticker`; `asset_type` constrained to `EQUITY` or `ETF`; active flag for future delisting or disablement behavior. |
 | `price_ticks` | Historical normalized quote ticks. | `symbol_id`, timestamp, bid, ask, last, volume, and source; prices must be positive; volume must be non-negative; `(symbol_id, ts, source)` is unique for deterministic replay. |
 | `portfolios` | User cash account. | One row per user; `cash_balance NUMERIC(18,2)`; non-negative cash; uppercase three-letter base currency. |
+| `cash_transfers` | Idempotent paper-cash demo movements. | User, portfolio, optional ledger entry, transfer type, amount, status, idempotency key, note, and timestamp; amount must be positive; `(user_id, idempotency_key)` is unique. |
 | `orders` | Paper order intent and lifecycle state. | User, symbol, side, order type, quantity, optional limit price, status, idempotency key, and rejection reason; quantity must be positive; rejected orders require a reason. |
 | `fills` | Execution records for filled orders. | References order and symbol; price and quantity must be positive; fee is non-negative and defaults to zero. |
 | `positions` | Current holdings per user and symbol. | Unique `(user_id, symbol_id)`; non-negative quantity and average cost; realized P&L accumulates on sells. |
@@ -53,6 +57,7 @@ erDiagram
 ## Relationships
 
 - `users` has one `portfolios` row and owns refresh tokens, orders, positions, ledger entries, portfolio snapshots, risk snapshots, and audit events.
+- `cash_transfers` records paper demo deposits and withdrawals and points to the ledger entry created for the movement.
 - `symbols` is the reference table for market data, orders, fills, positions, and symbol-linked ledger entries.
 - `orders` can produce fills and can be linked to ledger entries for reconciliation.
 - `fills` are the execution records that drive portfolio cash updates, position updates, ledger entries, portfolio snapshots, and risk snapshots.
@@ -68,6 +73,7 @@ erDiagram
 | `symbols.ticker UNIQUE` and uppercase check | Keep ticker lookup deterministic. |
 | `price_ticks(symbol_id, ts, source) UNIQUE` | Make replay ingestion idempotent for repeated fixture runs. |
 | `portfolios.user_id UNIQUE` | Enforce one cash account per user. |
+| `cash_transfers(user_id, idempotency_key) UNIQUE` | Prevent duplicate demo deposit or withdrawal submissions from changing cash twice. |
 | `orders(user_id, idempotency_key) UNIQUE` | Prevent duplicate order submissions from creating duplicate orders or fills. |
 | `orders` side/type/status checks | Keep lifecycle values inside known enum sets. |
 | `orders` market/limit price check | Require null `limit_price` for market orders and positive `limit_price` for limit orders. |
@@ -84,6 +90,8 @@ erDiagram
 | `idx_symbols_active_ticker` | Authenticated symbol list and active ticker lookups. |
 | `idx_price_ticks_symbol_ts_desc` | Latest quote fallback and bounded quote history reads. |
 | `uq_price_ticks_symbol_ts_source` | Deterministic tick replay idempotency. |
+| `uq_cash_transfers_ledger_entry_id` | Enforce one ledger row per completed cash transfer. |
+| `idx_cash_transfers_user_created_desc` | User-scoped cash movement review and reconciliation. |
 | `idx_orders_user_created_desc` | User-scoped order history. |
 | `idx_orders_symbol_status` | Pending order evaluation by symbol for limit matching and diagnostics. |
 | `idx_fills_order_id` | Order detail and reconciliation queries. |
@@ -136,6 +144,8 @@ Attempts to cancel `FILLED`, `CANCELLED`, or `REJECTED` orders return a conflict
 
 - Cash balances, fees, cash deltas, and realized P&L use 2 decimal places with `HALF_UP` rounding.
 - Prices, quantities, and average cost use 6 decimal places with `HALF_UP` rounding.
+- Paper cash deposits and withdrawals require an idempotency key, update portfolio cash, append a `CASH_DEPOSIT` or `CASH_WITHDRAWAL` ledger row, and create portfolio and risk snapshots in the same transaction.
+- Withdrawals are rejected if the resulting cash balance would be negative.
 - BUY fills decrease cash by `price * quantity + fee`, increase position quantity, and recalculate weighted average cost from existing cost basis plus fill cost.
 - SELL fills increase cash by `price * quantity - fee`, decrease position quantity, and add realized P&L as `(execution price - average cost) * quantity - fee`.
 - Partial sells keep the existing average cost.
@@ -150,6 +160,8 @@ Each filled order currently creates one ledger row:
 
 | Entry type | Cash delta | Quantity delta | Links |
 | --- | ---: | ---: | --- |
+| `CASH_DEPOSIT` | Positive transfer amount | Zero | user, portfolio, cash transfer metadata |
+| `CASH_WITHDRAWAL` | Negative transfer amount | Zero | user, portfolio, cash transfer metadata |
 | `BUY_FILL` | Negative total cost | Positive filled quantity | user, portfolio, order, fill, symbol |
 | `SELL_FILL` | Positive proceeds after fee | Negative filled quantity | user, portfolio, order, fill, symbol |
 

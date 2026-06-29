@@ -189,6 +189,10 @@ h2 {
   gap: 14px;
 }
 
+.cash-workspace {
+  max-width: 520px;
+}
+
 .detail-tile {
   display: grid;
   gap: 8px;
@@ -510,13 +514,20 @@ th {
 .order-ticket > .segmented-field,
 .order-ticket > .primary-button,
 .order-ticket > .form-error,
-.order-ticket > .order-result {
+.order-ticket > .order-result,
+.cash-transfer-panel > label,
+.cash-transfer-panel > .segmented-field,
+.cash-transfer-panel > .primary-button,
+.cash-transfer-panel > .form-error,
+.cash-transfer-panel > .order-result {
   margin-right: 20px;
   margin-left: 20px;
 }
 
 .order-ticket > .primary-button,
-.order-ticket > .order-result:last-child {
+.order-ticket > .order-result:last-child,
+.cash-transfer-panel > .primary-button,
+.cash-transfer-panel > .order-result:last-child {
   margin-bottom: 20px;
 }
 
