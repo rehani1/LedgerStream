@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useQuery } from '@tanstack/react-query';
 
-import { getPortfolioSummary, listLedgerEntries, listPortfolioPositions } from '../api/portfolio';
+import { getPortfolioHistory, getPortfolioSummary, listLedgerEntries, listPortfolioPositions } from '../api/portfolio';
 import { useAuth } from '../auth/AuthContext';
 
 const ledgerPageSize = 10;
@@ -32,14 +33,31 @@ export function PortfolioPage() {
     placeholderData: (previousData) => previousData
   });
 
+  const historyQuery = useQuery({
+    queryKey: ['portfolio-history', userId],
+    queryFn: () => getPortfolioHistory(accessToken, 0, 50),
+    enabled: queriesEnabled
+  });
+
   const summary = summaryQuery.data;
   const positions = positionsQuery.data ?? [];
   const ledger = ledgerQuery.data;
+  const history = historyQuery.data?.snapshots ?? [];
+  const chartData = useMemo(() => {
+    return [...history]
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
+      .map((snapshot) => ({
+        time: formatTime(snapshot.createdAt),
+        totalEquity: snapshot.totalEquity,
+        cash: snapshot.cash,
+        unrealizedPnl: snapshot.unrealizedPnl
+      }));
+  }, [history]);
   const totalLedgerPages = Math.max(ledger?.totalPages ?? 0, 1);
   const pageLabel = `Page ${ledgerPage + 1} of ${totalLedgerPages}`;
   const canGoBack = ledgerPage > 0;
   const canGoForward = ledger ? ledgerPage + 1 < ledger.totalPages : false;
-  const errorMessage = firstErrorMessage(summaryQuery.error, positionsQuery.error, ledgerQuery.error);
+  const errorMessage = firstErrorMessage(summaryQuery.error, positionsQuery.error, ledgerQuery.error, historyQuery.error);
 
   return (
     <section className="page-stack" aria-labelledby="portfolio-title">
@@ -92,6 +110,40 @@ export function PortfolioPage() {
           <span className="metric-label">Positions priced</span>
           <strong>{summary ? `${summary.pricedPositionsCount}/${summary.positionsCount}` : '—'}</strong>
         </article>
+      </div>
+
+      <div className="chart-panel">
+        <div className="table-heading">
+          <h2>Equity History</h2>
+          <span>{historyQuery.isFetching ? 'Loading' : `${chartData.length} points`}</span>
+        </div>
+        <div className="chart-frame">
+          {chartData.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%" minWidth={320} minHeight={240}>
+              <LineChart data={chartData} margin={{ top: 12, right: 20, bottom: 6, left: 0 }}>
+                <CartesianGrid stroke="#edf0eb" vertical={false} />
+                <XAxis dataKey="time" tickLine={false} axisLine={false} minTickGap={24} />
+                <YAxis
+                  tickFormatter={(value) => formatCompactMoney(Number(value), summary?.baseCurrency)}
+                  tickLine={false}
+                  axisLine={false}
+                  width={72}
+                />
+                <Tooltip
+                  formatter={(value, name) => [
+                    formatMoney(Number(value), summary?.baseCurrency),
+                    portfolioMetricLabel(String(name))
+                  ]}
+                />
+                <Line type="monotone" dataKey="totalEquity" stroke="#116149" strokeWidth={2.5} dot={false} />
+                <Line type="monotone" dataKey="cash" stroke="#6f4635" strokeWidth={2.2} dot={false} />
+                <Line type="monotone" dataKey="unrealizedPnl" stroke="#315d8a" strokeWidth={2.2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="chart-empty">No portfolio history</div>
+          )}
+        </div>
       </div>
 
       <div className="table-panel">
@@ -237,6 +289,15 @@ function formatMoney(value: number | null | undefined, currency = 'USD') {
   }).format(value);
 }
 
+function formatCompactMoney(value: number, currency = 'USD') {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency,
+    notation: 'compact',
+    maximumFractionDigits: 1
+  }).format(value);
+}
+
 function formatQuantity(value: number | null | undefined) {
   if (value == null) {
     return '—';
@@ -261,6 +322,23 @@ function formatDateTime(timestamp: string) {
     dateStyle: 'medium',
     timeStyle: 'short'
   }).format(new Date(timestamp));
+}
+
+function formatTime(timestamp: string) {
+  return new Intl.DateTimeFormat('en-US', {
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(new Date(timestamp));
+}
+
+function portfolioMetricLabel(name: string) {
+  const labels: Record<string, string> = {
+    totalEquity: 'Total equity',
+    cash: 'Cash',
+    unrealizedPnl: 'Unrealized P&L'
+  };
+
+  return labels[name] ?? name;
 }
 
 function valueTone(value: number | null | undefined) {

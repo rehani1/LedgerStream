@@ -59,8 +59,8 @@ Detailed system design: [Architecture](docs/architecture.md)
 - Kafka-compatible JSON event contracts for `market.tick`, `order.created`, `order.filled`, `portfolio.updated`, `risk.updated`, and `audit.event`.
 - Idempotent paper-order creation, user-scoped order history, and cancellation for pending orders.
 - Market order simulation with explicit rejection reasons and crossed limit-order simulation with pending cancellation support.
-- Transactional fill settlement that updates cash, positions, ledger entries, and risk snapshots.
-- Portfolio summary, positions, ledger, latest risk, and risk history APIs.
+- Transactional fill settlement that updates cash, positions, ledger entries, portfolio history, and risk snapshots.
+- Portfolio summary, positions, ledger, portfolio history, latest risk, and risk history APIs.
 - Structured JSON logs, request IDs, Prometheus metrics, and Grafana provisioning.
 - Kafka consumer retry policy with dead-letter topics for malformed or exhausted events.
 
@@ -83,7 +83,8 @@ LedgerStream models paper trading with explicit accounting boundaries:
 - `symbols` and `price_ticks` store supported instruments and market data history.
 - `portfolios`, `positions`, `orders`, and `fills` store trading state.
 - `ledger_entries` is append-only and records cash and quantity deltas.
-- `risk_snapshots` stores portfolio exposure and P&L snapshots.
+- `portfolio_snapshots` stores equity, cash, exposure, and P&L history.
+- `risk_snapshots` stores portfolio exposure and concentration snapshots.
 - `audit_events` records security and trading actions with safe metadata.
 
 Full schema and constraints: [Data Model](docs/data-model.md)
@@ -97,25 +98,25 @@ Implemented groups:
 - Auth: register, login, refresh, logout, current user.
 - Symbols and quotes: symbol catalog, latest quote, history, quote stream.
 - Orders: create, list, get, cancel.
-- Portfolio: summary, positions, ledger.
+- Portfolio: summary, positions, ledger, history.
 - Risk: latest snapshot and history.
 - Admin: replay status/start/stop and queue health.
 - Observability: health and Prometheus metrics.
 
 ## Testing Summary
 
-Most recent local verification on June 28, 2026:
+Most recent local verification on June 29, 2026:
 
 | Area | Result |
 | --- | ---: |
-| Backend Maven tests | 136 passed |
+| Backend Maven tests | 142 passed |
 | Frontend Vitest tests | 16 passed |
 | Market-data worker pytest | 15 passed |
 | Frontend production build | Passed with existing Vite chunk-size warning |
 
 Additional coverage:
 
-- Backend unit tests cover fill settlement, average cost, realized P&L, idempotency, rejection paths, risk calculations, access control, and controller behavior.
+- Backend unit tests cover fill settlement, average cost, realized P&L, idempotency, rejection paths, portfolio history, risk calculations, access control, and controller behavior.
 - Backend integration tests use Testcontainers for PostgreSQL and Redis when Docker is available.
 - Frontend tests cover auth, dashboard, orders, portfolio, risk, and admin views with mocked APIs.
 - Playwright E2E covers the browser trading flow with mocked APIs by default and can target a seeded local stack.
@@ -235,7 +236,6 @@ Local demo seed is disabled by default. Enable it only for local or demo environ
 - Add an outbox or transactional messaging layer.
 - Add DLT re-drive tooling.
 - Add advanced order controls such as time in force and partial-fill modeling.
-- Add historical portfolio snapshots.
 - Add a simple backtesting service.
 - Add archive export paths.
 - Move refresh tokens to `Secure`, `HttpOnly`, `SameSite` cookies.

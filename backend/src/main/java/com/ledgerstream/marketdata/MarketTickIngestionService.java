@@ -10,6 +10,7 @@ import com.ledgerstream.domain.repository.PriceTickRepository;
 import com.ledgerstream.domain.repository.SymbolRepository;
 import com.ledgerstream.events.MarketTickEvent;
 import com.ledgerstream.orders.OrderExecutionService;
+import com.ledgerstream.portfolio.PortfolioSnapshotService;
 import com.ledgerstream.quotes.CachedQuote;
 import com.ledgerstream.quotes.QuoteStreamService;
 import com.ledgerstream.quotes.RedisQuoteCacheService;
@@ -28,6 +29,7 @@ public class MarketTickIngestionService {
 	private final RedisQuoteCacheService quoteCacheService;
 	private final QuoteStreamService quoteStreamService;
 	private final RiskCalculationService riskCalculationService;
+	private final PortfolioSnapshotService portfolioSnapshotService;
 	private final OrderExecutionService orderExecutionService;
 	private final Counter consumedCounter;
 	private final Counter failedCounter;
@@ -38,6 +40,7 @@ public class MarketTickIngestionService {
 		RedisQuoteCacheService quoteCacheService,
 		QuoteStreamService quoteStreamService,
 		RiskCalculationService riskCalculationService,
+		PortfolioSnapshotService portfolioSnapshotService,
 		OrderExecutionService orderExecutionService,
 		MeterRegistry meterRegistry
 	) {
@@ -46,6 +49,7 @@ public class MarketTickIngestionService {
 		this.quoteCacheService = quoteCacheService;
 		this.quoteStreamService = quoteStreamService;
 		this.riskCalculationService = riskCalculationService;
+		this.portfolioSnapshotService = portfolioSnapshotService;
 		this.orderExecutionService = orderExecutionService;
 		this.consumedCounter = Counter.builder("ledgerstream_market_ticks_consumed_total")
 			.description("Market tick events consumed and applied by the backend")
@@ -78,6 +82,7 @@ public class MarketTickIngestionService {
 			quoteCacheService.putLatestQuote(cachedQuote);
 			quoteStreamService.broadcast(QuoteResponse.from(cachedQuote));
 			riskCalculationService.recordSnapshotsForSymbol(tick.symbol());
+			portfolioSnapshotService.recordSnapshotsForSymbol(tick.symbol());
 			orderExecutionService.executePendingLimitOrders(tick.symbol());
 			consumedCounter.increment();
 		} catch (MarketTickRejectedException ex) {

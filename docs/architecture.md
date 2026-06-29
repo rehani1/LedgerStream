@@ -2,7 +2,7 @@
 
 ## Overview
 
-LedgerStream is an event-driven paper-trading system. Deterministic market data enters through a Python replay worker, moves through Redpanda, and is consumed by the Spring Boot backend for historical storage, hot quote cache updates, quote streaming, market and limit order execution, portfolio accounting, risk snapshots, and audit logging.
+LedgerStream is an event-driven paper-trading system. Deterministic market data enters through a Python replay worker, moves through Redpanda, and is consumed by the Spring Boot backend for historical storage, hot quote cache updates, quote streaming, market and limit order execution, portfolio accounting, portfolio snapshots, risk snapshots, and audit logging.
 
 The system intentionally models paper trading only. There is no real brokerage order placement path, and all financial mutations are scoped to authenticated LedgerStream users.
 
@@ -26,9 +26,9 @@ flowchart LR
 | Service | Runtime responsibility |
 | --- | --- |
 | `frontend` | Authenticated React dashboard for quotes, streaming prices, order entry, order history, portfolio, ledger, risk, and admin replay controls. |
-| `backend` | REST API, JWT and refresh-token auth, RBAC, SSE gateway, quote queries, order submission, market and limit execution, portfolio ledger settlement, risk calculations, structured logs, metrics, and health checks. |
+| `backend` | REST API, JWT and refresh-token auth, RBAC, SSE gateway, quote queries, order submission, market and limit execution, portfolio ledger settlement, portfolio history, risk calculations, structured logs, metrics, and health checks. |
 | `market-data-worker` | Deterministic CSV replay, row validation, replay speed control, dry-run output, and normalized `market.tick` event publishing. |
-| `postgres` | Durable relational source of truth for users, tokens, symbols, ticks, orders, fills, portfolios, positions, ledger rows, risk snapshots, and audit events. |
+| `postgres` | Durable relational source of truth for users, tokens, symbols, ticks, orders, fills, portfolios, positions, ledger rows, portfolio snapshots, risk snapshots, and audit events. |
 | `redis` | Hot latest-quote cache using `latest_quote:{SYMBOL}` keys. Quote APIs fall back to PostgreSQL when the cache misses or cache reads fail. |
 | `redpanda` | Kafka-compatible event stream for market data and backend domain events. |
 | `prometheus` | Scrapes backend actuator metrics and stores local metric history. |
@@ -44,6 +44,7 @@ sequenceDiagram
   participant DB as PostgreSQL
   participant Cache as Redis
   participant SSE as SSE clients
+  participant Portfolio as Portfolio history
   participant Risk as Risk service
   participant Orders as Order execution
 
@@ -54,6 +55,7 @@ sequenceDiagram
   Backend->>DB: insert price_ticks unless duplicate source timestamp
   Backend->>Cache: update latest_quote:{SYMBOL}
   Backend->>SSE: broadcast quote event to matching subscribers
+  Backend->>Portfolio: record portfolio snapshots for users holding the symbol
   Backend->>Risk: record snapshots for users holding the symbol
   Backend->>Orders: evaluate pending limit orders for the symbol
 ```
@@ -99,7 +101,7 @@ sequenceDiagram
     Executor->>Cache: read latest executable quote
     Executor->>DB: fallback to newest price_ticks row on cache miss
     alt Executable market order or crossed limit order
-      Executor->>DB: fill, order FILLED, portfolio cash, position, ledger row, risk snapshot
+      Executor->>DB: fill, order FILLED, portfolio cash, position, ledger row, portfolio snapshot, risk snapshot
       Executor->>Stream: publish order.filled and risk.updated
     else Limit not crossed
       Executor-->>DB: keep order PENDING
@@ -114,9 +116,9 @@ Market BUY execution uses ask price with last-price fallback. Market SELL execut
 ## Consistency Boundaries
 
 - `orders(user_id, idempotency_key)` is the duplicate-submission boundary. A duplicate request returns the existing order and does not publish another `order.created` event.
-- Order execution is a Spring transaction that updates order status, writes the fill, settles portfolio cash, updates the position, appends the ledger entry, records risk, and records rejection audit events when relevant.
+- Order execution is a Spring transaction that updates order status, writes the fill, settles portfolio cash, updates the position, appends the ledger entry, records portfolio history, records risk, and records rejection audit events when relevant.
 - `PortfolioLedgerService` and `AuditService` require an existing transaction, which keeps ledger and audit writes tied to the domain mutation that caused them.
-- Market tick ingestion is transactional for symbol resolution, historical tick persistence, quote cache refresh, SSE broadcast trigger, and affected-user risk snapshots. Rejected tick events are counted and acknowledged by the consumer after logging.
+- Market tick ingestion is transactional for symbol resolution, historical tick persistence, quote cache refresh, SSE broadcast trigger, and affected-user portfolio and risk snapshots. Rejected tick events are counted and acknowledged by the consumer after logging.
 - Kafka publishes are issued by service code but are not backed by an outbox table yet. A crash between database commit and event acknowledgement is a known reliability gap for a later outbox or transactional messaging pass.
 
 ## Event Topics

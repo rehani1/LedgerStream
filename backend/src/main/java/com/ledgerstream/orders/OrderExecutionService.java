@@ -25,6 +25,7 @@ import com.ledgerstream.events.OrderFilledEvent;
 import com.ledgerstream.logging.MdcScope;
 import com.ledgerstream.metrics.LedgerStreamMetrics;
 import com.ledgerstream.portfolio.PortfolioLedgerService;
+import com.ledgerstream.portfolio.PortfolioSnapshotService;
 import com.ledgerstream.quotes.QuoteQueryService;
 import com.ledgerstream.quotes.dto.QuoteResponse;
 import com.ledgerstream.risk.RiskCalculationService;
@@ -55,6 +56,7 @@ public class OrderExecutionService {
 	private final QuoteQueryService quoteQueryService;
 	private final PortfolioLedgerService portfolioLedgerService;
 	private final RiskCalculationService riskCalculationService;
+	private final PortfolioSnapshotService portfolioSnapshotService;
 	private final EventPublisher eventPublisher;
 	private final AuditService auditService;
 	private final LedgerStreamMetrics metrics;
@@ -68,6 +70,7 @@ public class OrderExecutionService {
 		QuoteQueryService quoteQueryService,
 		PortfolioLedgerService portfolioLedgerService,
 		RiskCalculationService riskCalculationService,
+		PortfolioSnapshotService portfolioSnapshotService,
 		EventPublisher eventPublisher,
 		AuditService auditService,
 		LedgerStreamMetrics metrics,
@@ -80,6 +83,7 @@ public class OrderExecutionService {
 		this.quoteQueryService = quoteQueryService;
 		this.portfolioLedgerService = portfolioLedgerService;
 		this.riskCalculationService = riskCalculationService;
+		this.portfolioSnapshotService = portfolioSnapshotService;
 		this.eventPublisher = eventPublisher;
 		this.auditService = auditService;
 		this.metrics = metrics;
@@ -157,6 +161,7 @@ public class OrderExecutionService {
 		Fill savedFill = fillRepository.save(fill);
 		applyPortfolioUpdate(portfolio, savedFill, sellPosition);
 		riskCalculationService.recordSnapshot(order.getUser().getId());
+		portfolioSnapshotService.recordSnapshot(order.getUser().getId());
 		eventPublisher.publishOrderFilled(toOrderFilledEvent(savedFill));
 		metrics.recordOrderFilled();
 		try (MdcScope ignored = orderLogContext(order, "order.filled")) {

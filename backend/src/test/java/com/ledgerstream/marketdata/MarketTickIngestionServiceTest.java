@@ -20,6 +20,7 @@ import com.ledgerstream.domain.repository.PriceTickRepository;
 import com.ledgerstream.domain.repository.SymbolRepository;
 import com.ledgerstream.events.MarketTickEvent;
 import com.ledgerstream.orders.OrderExecutionService;
+import com.ledgerstream.portfolio.PortfolioSnapshotService;
 import com.ledgerstream.quotes.CachedQuote;
 import com.ledgerstream.quotes.QuoteStreamService;
 import com.ledgerstream.quotes.RedisQuoteCacheService;
@@ -54,6 +55,9 @@ class MarketTickIngestionServiceTest {
 	private RiskCalculationService riskCalculationService;
 
 	@Mock
+	private PortfolioSnapshotService portfolioSnapshotService;
+
+	@Mock
 	private OrderExecutionService orderExecutionService;
 
 	private SimpleMeterRegistry meterRegistry;
@@ -68,6 +72,7 @@ class MarketTickIngestionServiceTest {
 			quoteCacheService,
 			quoteStreamService,
 			riskCalculationService,
+			portfolioSnapshotService,
 			orderExecutionService,
 			meterRegistry
 		);
@@ -102,6 +107,7 @@ class MarketTickIngestionServiceTest {
 		assertThat(cachedQuote.last()).isEqualByComparingTo("187.150000");
 		verify(quoteStreamService).broadcast(any(QuoteResponse.class));
 		verify(riskCalculationService).recordSnapshotsForSymbol("AAPL");
+		verify(portfolioSnapshotService).recordSnapshotsForSymbol("AAPL");
 		verify(orderExecutionService).executePendingLimitOrders("AAPL");
 		assertThat(counter("ledgerstream_market_ticks_consumed_total")).isEqualTo(1.0);
 		assertThat(counter("ledgerstream_market_ticks_failed_total")).isZero();
@@ -121,6 +127,7 @@ class MarketTickIngestionServiceTest {
 		verify(quoteCacheService).putLatestQuote(any(CachedQuote.class));
 		verify(quoteStreamService).broadcast(any(QuoteResponse.class));
 		verify(riskCalculationService).recordSnapshotsForSymbol("MSFT");
+		verify(portfolioSnapshotService).recordSnapshotsForSymbol("MSFT");
 		verify(orderExecutionService).executePendingLimitOrders("MSFT");
 		assertThat(counter("ledgerstream_market_ticks_consumed_total")).isEqualTo(1.0);
 		assertThat(counter("ledgerstream_market_ticks_failed_total")).isZero();
@@ -138,6 +145,7 @@ class MarketTickIngestionServiceTest {
 		verify(priceTickRepository, never()).save(any());
 		verifyNoInteractions(quoteCacheService);
 		verifyNoInteractions(riskCalculationService);
+		verifyNoInteractions(portfolioSnapshotService);
 		verifyNoInteractions(orderExecutionService);
 		assertThat(counter("ledgerstream_market_ticks_consumed_total")).isZero();
 		assertThat(counter("ledgerstream_market_ticks_failed_total")).isEqualTo(1.0);
@@ -161,6 +169,7 @@ class MarketTickIngestionServiceTest {
 			.hasMessage("Market tick ask must be greater than or equal to bid");
 
 		verifyNoInteractions(symbolRepository, priceTickRepository, quoteCacheService, riskCalculationService);
+		verifyNoInteractions(portfolioSnapshotService);
 		verifyNoInteractions(orderExecutionService);
 		assertThat(counter("ledgerstream_market_ticks_consumed_total")).isZero();
 		assertThat(counter("ledgerstream_market_ticks_failed_total")).isEqualTo(1.0);

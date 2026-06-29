@@ -37,6 +37,7 @@ import com.ledgerstream.events.OrderCreatedEvent;
 import com.ledgerstream.events.OrderFilledEvent;
 import com.ledgerstream.metrics.LedgerStreamMetrics;
 import com.ledgerstream.portfolio.PortfolioLedgerService;
+import com.ledgerstream.portfolio.PortfolioSnapshotService;
 import com.ledgerstream.quotes.QuoteQueryService;
 import com.ledgerstream.quotes.dto.QuoteResponse;
 import com.ledgerstream.risk.RiskCalculationService;
@@ -78,6 +79,9 @@ class OrderExecutionServiceTest {
 	private RiskCalculationService riskCalculationService;
 
 	@Mock
+	private PortfolioSnapshotService portfolioSnapshotService;
+
+	@Mock
 	private EventPublisher eventPublisher;
 
 	@Mock
@@ -99,6 +103,7 @@ class OrderExecutionServiceTest {
 			quoteQueryService,
 			portfolioLedgerService,
 			riskCalculationService,
+			portfolioSnapshotService,
 			eventPublisher,
 			auditService,
 			new LedgerStreamMetrics(meterRegistry),
@@ -152,6 +157,7 @@ class OrderExecutionServiceTest {
 			new BigDecimal("10.000000")
 		);
 		verify(riskCalculationService).recordSnapshot(USER_ID);
+		verify(portfolioSnapshotService).recordSnapshot(USER_ID);
 
 		ArgumentCaptor<OrderFilledEvent> eventCaptor = ArgumentCaptor.forClass(OrderFilledEvent.class);
 		verify(eventPublisher).publishOrderFilled(eventCaptor.capture());
@@ -318,6 +324,7 @@ class OrderExecutionServiceTest {
 		verify(fillRepository, never()).save(any(Fill.class));
 		verify(portfolioLedgerService, never()).appendFill(any(), any(), any(), any());
 		verify(riskCalculationService, never()).recordSnapshot(any());
+		verify(portfolioSnapshotService, never()).recordSnapshot(any());
 		verify(eventPublisher, never()).publishOrderFilled(any(OrderFilledEvent.class));
 		assertThat(counter(LedgerStreamMetrics.ORDERS_REJECTED)).isEqualTo(1.0);
 		assertThat(counter(LedgerStreamMetrics.ORDERS_FILLED)).isZero();
@@ -342,6 +349,7 @@ class OrderExecutionServiceTest {
 		verify(positionRepository, never()).save(any(Position.class));
 		verify(portfolioLedgerService, never()).appendFill(any(), any(), any(), any());
 		verify(riskCalculationService, never()).recordSnapshot(any());
+		verify(portfolioSnapshotService, never()).recordSnapshot(any());
 		verify(eventPublisher, never()).publishOrderFilled(any(OrderFilledEvent.class));
 	}
 
@@ -376,6 +384,7 @@ class OrderExecutionServiceTest {
 		verify(fillRepository, never()).save(any(Fill.class));
 		verify(portfolioLedgerService, never()).appendFill(any(), any(), any(), any());
 		verify(riskCalculationService, never()).recordSnapshot(any());
+		verify(portfolioSnapshotService, never()).recordSnapshot(any());
 		verify(eventPublisher, never()).publishOrderFilled(any(OrderFilledEvent.class));
 	}
 
@@ -393,6 +402,7 @@ class OrderExecutionServiceTest {
 		verify(fillRepository, never()).save(any(Fill.class));
 		verify(portfolioLedgerService, never()).appendFill(any(), any(), any(), any());
 		verify(riskCalculationService, never()).recordSnapshot(any());
+		verify(portfolioSnapshotService, never()).recordSnapshot(any());
 	}
 
 	@Test

@@ -26,6 +26,7 @@ This document describes the implemented LedgerStream HTTP API and Kafka-compatib
 | Portfolio | `GET` | `/api/portfolio` | User | Implemented. Summary with cash, equity, and P&L. |
 | Portfolio | `GET` | `/api/portfolio/positions` | User | Implemented. Position list with quote-derived valuations. |
 | Portfolio | `GET` | `/api/portfolio/ledger?page=0&size=50` | User | Implemented. Paginated append-only ledger entries. |
+| Portfolio | `GET` | `/api/portfolio/history?page=0&size=50` | User | Implemented. Historical portfolio equity, cash, exposure, and P&L snapshots. |
 | Risk | `GET` | `/api/portfolio/risk` | User | Implemented. Latest risk snapshot. |
 | Risk | `GET` | `/api/portfolio/risk/history?page=0&size=50` | User | Implemented. Historical risk snapshots. |
 | Admin | `GET` | `/api/admin/market/replay/status` | Admin | Implemented. Return backend replay-control state. |
@@ -268,7 +269,7 @@ Portfolio settlement uses these rounding assumptions: cash, fees, and realized P
 
 Each filled order also appends one ledger entry in the same transaction as the fill, cash update, and position update. BUY fill ledger rows record a negative cash delta and positive quantity delta. SELL fill ledger rows record a positive cash delta and negative quantity delta. The ledger row links the user, portfolio, order, fill, symbol, execution price, and metadata including side, order type, and fee.
 
-Filled orders now create risk snapshots and publish `risk.updated`. Portfolio summary events remain a follow-on layer.
+Filled orders now create portfolio history and risk snapshots, then publish `risk.updated`. Portfolio summary events remain a follow-on layer.
 
 `POST /api/orders`
 
@@ -380,6 +381,32 @@ Position valuation uses the latest quote `last` price when available. If no late
 }
 ```
 
+`GET /api/portfolio/history?page=0&size=50`
+
+Portfolio history snapshots are recorded after successful fills and after accepted market ticks for users holding the ticked symbol. The endpoint returns zero-based paginated snapshots; `size` must be between `1` and `100`.
+
+```json
+{
+  "snapshots": [
+    {
+      "id": "00000000-0000-0000-0000-000000000105",
+      "portfolioId": "00000000-0000-0000-0000-000000000100",
+      "totalEquity": 100000.00,
+      "cash": 98125.20,
+      "marketValue": 1874.80,
+      "grossExposure": 1874.80,
+      "realizedPnl": 0.00,
+      "unrealizedPnl": 0.00,
+      "createdAt": "2026-01-02T14:35:00Z"
+    }
+  ],
+  "page": 0,
+  "size": 50,
+  "totalElements": 1,
+  "totalPages": 1
+}
+```
+
 ## Risk
 
 Risk snapshots are calculated after successful fills and after accepted market ticks for users holding the ticked symbol. The backend persists snapshots in `risk_snapshots` and publishes `risk.updated`.
@@ -431,7 +458,7 @@ If a latest quote is unavailable, risk valuation falls back to average cost and 
 
 ## Pagination
 
-Ledger and risk history endpoints use zero-based pagination:
+Ledger, portfolio history, and risk history endpoints use zero-based pagination:
 
 | Parameter | Default | Bounds | Notes |
 | --- | ---: | --- | --- |
