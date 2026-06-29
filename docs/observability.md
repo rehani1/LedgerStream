@@ -256,6 +256,6 @@ curl -s http://localhost:8080/actuator/prometheus | rg 'ledgerstream_event_consu
 
 Retry policy defaults are `BACKEND_KAFKA_RETRY_MAX_ATTEMPTS=3`, `BACKEND_KAFKA_RETRY_BACKOFF=2s`, and `BACKEND_KAFKA_DEAD_LETTER_SUFFIX=.DLT`. Invalid market ticks are classified as non-retryable and go straight to DLT; unexpected infrastructure or listener failures retry first.
 
-## TODO
+## Future Troubleshooting Work
 
-- Add a stream-disconnect troubleshooting playbook after SSE load testing is added.
+- Add a stream-disconnect troubleshooting playbook after SSE load testing exists.
