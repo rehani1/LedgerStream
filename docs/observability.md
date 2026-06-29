@@ -20,6 +20,8 @@ Spring Boot and Micrometer provide JVM, process, HTTP server, datasource, and ex
 - `ledgerstream_quote_stream_send_failures_total`: quote SSE send failures that caused the backend to close a stream.
 - `ledgerstream_quote_cache_hits_total`: latest quote reads served from Redis.
 - `ledgerstream_quote_cache_misses_total`: latest quote reads that fell back to PostgreSQL because Redis missed or was unavailable.
+- `ledgerstream_event_consumer_retries_total`: Kafka listener retry attempts by source topic and exception.
+- `ledgerstream_event_consumer_dead_letters_total`: Kafka listener records published to dead-letter topics by source topic, target topic, and exception.
 - `ledgerstream_portfolio_calculation_latency`: timer for portfolio summary and position valuation calculations. Prometheus exports timer series such as `_seconds_count`, `_seconds_sum`, and `_seconds_max`.
 
 Planned custom metrics:
@@ -207,6 +209,18 @@ docker compose exec redpanda rpk topic list
 
 Expected local topics after replay/order traffic include `market.tick` and `order.created`; other topics are created when their publishers run.
 
+Dead-letter topics use the source topic plus the configured suffix, `.DLT` by default. The current backend listener configuration publishes malformed or exhausted consumer records to:
+
+- `market.tick.DLT`
+- `order.created.DLT`
+
+Admin users can also inspect the configured source topics, dead-letter topics, and retry policy through:
+
+```bash
+curl -s http://localhost:8080/api/admin/queue-health \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+```
+
 Inspect backend consumer group lag:
 
 ```bash
@@ -227,7 +241,21 @@ order.created  0          1               1               0
 
 When lag is non-zero, check backend consumer logs, Kafka connectivity settings, and malformed-event metrics. If `market.tick` lag grows, quotes and risk snapshots can go stale. If `order.created` lag grows, submitted orders can remain `PENDING` longer than expected.
 
+Inspect dead-lettered records:
+
+```bash
+docker compose exec redpanda rpk topic consume market.tick.DLT --num 5
+docker compose exec redpanda rpk topic consume order.created.DLT --num 5
+```
+
+Useful retry and DLT metrics:
+
+```bash
+curl -s http://localhost:8080/actuator/prometheus | rg 'ledgerstream_event_consumer_(retries|dead_letters)'
+```
+
+Retry policy defaults are `BACKEND_KAFKA_RETRY_MAX_ATTEMPTS=3`, `BACKEND_KAFKA_RETRY_BACKOFF=2s`, and `BACKEND_KAFKA_DEAD_LETTER_SUFFIX=.DLT`. Invalid market ticks are classified as non-retryable and go straight to DLT; unexpected infrastructure or listener failures retry first.
+
 ## TODO
 
 - Add a stream-disconnect troubleshooting playbook after SSE load testing is added.
-- Add dead-letter queue inspection steps after retry/DLQ support is implemented.

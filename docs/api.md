@@ -470,6 +470,15 @@ The current MVP uses `mode: "backend_state"`. These endpoints do not spawn or ki
     "portfolioUpdated": "portfolio.updated",
     "riskUpdated": "risk.updated",
     "auditEvent": "audit.event"
+  },
+  "deadLetterTopics": {
+    "marketTick": "market.tick.DLT",
+    "orderCreated": "order.created.DLT"
+  },
+  "retryPolicy": {
+    "retryMaxAttempts": 3,
+    "retryBackoff": "PT2S",
+    "deadLetterSuffix": ".DLT"
   }
 }
 ```

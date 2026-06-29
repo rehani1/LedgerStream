@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.Map;
 
 import com.ledgerstream.auth.AuthenticatedUser;
+import com.ledgerstream.config.properties.KafkaProperties;
 import com.ledgerstream.events.EventTopics;
 import com.ledgerstream.web.RequestIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
@@ -20,9 +21,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminController {
 
 	private final ReplayControlService replayControlService;
+	private final KafkaProperties kafkaProperties;
 
-	public AdminController(ReplayControlService replayControlService) {
+	public AdminController(ReplayControlService replayControlService, KafkaProperties kafkaProperties) {
 		this.replayControlService = replayControlService;
+		this.kafkaProperties = kafkaProperties;
 	}
 
 	@GetMapping("/market/replay/status")
@@ -58,6 +61,15 @@ public class AdminController {
 				"portfolioUpdated", EventTopics.PORTFOLIO_UPDATED,
 				"riskUpdated", EventTopics.RISK_UPDATED,
 				"auditEvent", EventTopics.AUDIT_EVENT
+			),
+			Map.of(
+				"marketTick", EventTopics.deadLetterTopic(EventTopics.MARKET_TICK, kafkaProperties.deadLetterSuffix()),
+				"orderCreated", EventTopics.deadLetterTopic(EventTopics.ORDER_CREATED, kafkaProperties.deadLetterSuffix())
+			),
+			new QueueRetryPolicyResponse(
+				kafkaProperties.retryMaxAttempts(),
+				kafkaProperties.retryBackoff().toString(),
+				kafkaProperties.deadLetterSuffix()
 			)
 		);
 	}
@@ -65,7 +77,16 @@ public class AdminController {
 	public record QueueHealthResponse(
 		String status,
 		Instant checkedAt,
-		Map<String, String> topics
+		Map<String, String> topics,
+		Map<String, String> deadLetterTopics,
+		QueueRetryPolicyResponse retryPolicy
+	) {
+	}
+
+	public record QueueRetryPolicyResponse(
+		long retryMaxAttempts,
+		String retryBackoff,
+		String deadLetterSuffix
 	) {
 	}
 

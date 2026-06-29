@@ -132,17 +132,18 @@ Spring Kafka is configured for Redpanda-compatible brokers. Producer JSON serial
 | `risk.updated` | Produced when a risk snapshot is recorded. |
 | `audit.event` | Contract exists for audit fanout; audit events are currently persisted in PostgreSQL. |
 
-The market tick connectivity listener can be enabled with `BACKEND_KAFKA_CONNECTIVITY_CONSUMER_ENABLED=true` for local broker checks. The main tick and order consumers can be disabled with `BACKEND_MARKET_TICK_CONSUMER_ENABLED=false` and `BACKEND_ORDER_CREATED_CONSUMER_ENABLED=false` for API-only testing.
+Failed listener records use the configured dead-letter suffix, `.DLT` by default. The implemented dead-letter topics are `market.tick.DLT` and `order.created.DLT`. The market tick connectivity listener can be enabled with `BACKEND_KAFKA_CONNECTIVITY_CONSUMER_ENABLED=true` for local broker checks. The main tick and order consumers can be disabled with `BACKEND_MARKET_TICK_CONSUMER_ENABLED=false` and `BACKEND_ORDER_CREATED_CONSUMER_ENABLED=false` for API-only testing.
 
 ## Failure Handling
 
 - API validation and authorization failures return the standard JSON error shape with `requestId`.
-- Unknown symbols, missing fields, non-positive prices, negative volume, and crossed bid/ask values reject `market.tick` events and increment `ledgerstream_market_ticks_failed_total`.
+- Unknown symbols, missing fields, non-positive prices, negative volume, and crossed bid/ask values reject `market.tick` events, increment `ledgerstream_market_ticks_failed_total`, skip retries, and publish the failed record to `market.tick.DLT`.
 - Duplicate replay ticks are idempotent at `(symbol_id, ts, source)`: historical insertion is skipped, but the latest quote cache and stream fanout can still reflect the event.
-- Redis read failures on quote APIs degrade to PostgreSQL fallback. Redis write or database failures during tick ingestion fail the event processing path and let the Kafka container handle the unexpected exception.
+- Redis read failures on quote APIs degrade to PostgreSQL fallback. Redis write, database, and unexpected execution failures use the Kafka listener retry policy before publishing exhausted records to the source topic's dead-letter topic.
 - SSE send failures close the affected emitter and increment `ledgerstream_quote_stream_send_failures_total`.
 - Market orders reject with explicit persisted reasons when quote, price, cash, shares, or portfolio prerequisites are missing. Limit orders without a quote or without a crossed price remain pending; crossed limits use the same cash, share, and portfolio checks before filling.
-- There is no production dead-letter queue or outbox processor yet. Those are documented tradeoffs rather than hidden guarantees.
+- Consumer retry defaults are `3` fixed-backoff attempts with `2s` between attempts. Operators can change `BACKEND_KAFKA_RETRY_MAX_ATTEMPTS`, `BACKEND_KAFKA_RETRY_BACKOFF`, and `BACKEND_KAFKA_DEAD_LETTER_SUFFIX`.
+- Kafka publishes are still not backed by a database outbox. A crash between database commit and event acknowledgement remains a known reliability gap for a later outbox or transactional messaging pass.
 
 ## Security And Observability
 

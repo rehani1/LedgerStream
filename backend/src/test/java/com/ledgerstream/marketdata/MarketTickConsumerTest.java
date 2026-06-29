@@ -1,6 +1,5 @@
 package com.ledgerstream.marketdata;
 
-import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
@@ -30,11 +29,13 @@ class MarketTickConsumerTest {
 	}
 
 	@Test
-	void receiveSwallowsRejectedEventsAfterLogging() {
+	void receivePropagatesRejectedEventsForDeadLetterHandling() {
 		MarketTickEvent event = marketTick();
 		doThrow(new MarketTickRejectedException("bad tick")).when(ingestionService).ingest(event);
 
-		assertThatCode(() -> consumer.receive(event)).doesNotThrowAnyException();
+		assertThatThrownBy(() -> consumer.receive(event))
+			.isInstanceOf(MarketTickRejectedException.class)
+			.hasMessage("bad tick");
 
 		verify(ingestionService).ingest(event);
 	}

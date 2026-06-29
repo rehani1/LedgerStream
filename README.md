@@ -62,6 +62,7 @@ Detailed system design: [Architecture](docs/architecture.md)
 - Transactional fill settlement that updates cash, positions, ledger entries, and risk snapshots.
 - Portfolio summary, positions, ledger, latest risk, and risk history APIs.
 - Structured JSON logs, request IDs, Prometheus metrics, and Grafana provisioning.
+- Kafka consumer retry policy with dead-letter topics for malformed or exhausted events.
 
 ## Tech Stack
 
@@ -107,8 +108,8 @@ Most recent local verification on June 28, 2026:
 
 | Area | Result |
 | --- | ---: |
-| Backend Maven tests | 126 passed |
-| Frontend Vitest tests | 14 passed |
+| Backend Maven tests | 136 passed |
+| Frontend Vitest tests | 16 passed |
 | Market-data worker pytest | 15 passed |
 | Frontend production build | Passed with existing Vite chunk-size warning |
 
@@ -137,7 +138,7 @@ These are local baseline measurements, not production capacity claims. Details a
 
 ## Observability
 
-The backend exposes `/actuator/health` and `/actuator/prometheus`. Custom metrics include market tick consumption/failures, order created/filled/rejected counts, quote stream clients/events/failures, quote cache hits/misses, and portfolio calculation latency.
+The backend exposes `/actuator/health` and `/actuator/prometheus`. Custom metrics include market tick consumption/failures, order created/filled/rejected counts, event consumer retries/dead letters, quote stream clients/events/failures, quote cache hits/misses, and portfolio calculation latency.
 
 Grafana provisioning lives under `infra/grafana/provisioning` and includes the `LedgerStream Overview` dashboard.
 
@@ -232,7 +233,7 @@ Local demo seed is disabled by default. Enable it only for local or demo environ
 - Deploy or schedule a hosted market-data worker for Redpanda Cloud.
 - Add broker-backed end-to-end event-flow tests.
 - Add an outbox or transactional messaging layer.
-- Add dead-letter topics and retry handling.
+- Add DLT re-drive tooling.
 - Add advanced order controls such as time in force and partial-fill modeling.
 - Add historical portfolio snapshots.
 - Add a simple backtesting service.

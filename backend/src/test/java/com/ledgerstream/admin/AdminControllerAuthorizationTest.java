@@ -58,7 +58,12 @@ class AdminControllerAuthorizationTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.status").value("topics_configured"))
 			.andExpect(jsonPath("$.checkedAt").exists())
-			.andExpect(jsonPath("$.topics.marketTick").value("market.tick"));
+			.andExpect(jsonPath("$.topics.marketTick").value("market.tick"))
+			.andExpect(jsonPath("$.deadLetterTopics.marketTick").value("market.tick.DLT"))
+			.andExpect(jsonPath("$.deadLetterTopics.orderCreated").value("order.created.DLT"))
+			.andExpect(jsonPath("$.retryPolicy.retryMaxAttempts").value(3))
+			.andExpect(jsonPath("$.retryPolicy.retryBackoff").value("PT2S"))
+			.andExpect(jsonPath("$.retryPolicy.deadLetterSuffix").value(".DLT"));
 	}
 
 	@Test

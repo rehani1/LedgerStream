@@ -1,9 +1,12 @@
 package com.ledgerstream.config.properties;
 
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.common.config.SaslConfigs;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -17,6 +20,9 @@ public record KafkaProperties(
 	boolean connectivityConsumerEnabled,
 	boolean marketTickConsumerEnabled,
 	boolean orderCreatedConsumerEnabled,
+	@Min(0) long retryMaxAttempts,
+	@NotNull Duration retryBackoff,
+	@NotBlank String deadLetterSuffix,
 	String securityProtocol,
 	String saslMechanism,
 	String saslUsername,

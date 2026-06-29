@@ -73,6 +73,9 @@ ledgerstream:
     connectivity-consumer-enabled: ${BACKEND_KAFKA_CONNECTIVITY_CONSUMER_ENABLED:false}
     market-tick-consumer-enabled: ${BACKEND_MARKET_TICK_CONSUMER_ENABLED:true}
     order-created-consumer-enabled: ${BACKEND_ORDER_CREATED_CONSUMER_ENABLED:true}
+    retry-max-attempts: ${BACKEND_KAFKA_RETRY_MAX_ATTEMPTS:3}
+    retry-backoff: ${BACKEND_KAFKA_RETRY_BACKOFF:2s}
+    dead-letter-suffix: ${BACKEND_KAFKA_DEAD_LETTER_SUFFIX:.DLT}
     security-protocol: ${BACKEND_KAFKA_SECURITY_PROTOCOL:}
     sasl-mechanism: ${BACKEND_KAFKA_SASL_MECHANISM:}
     sasl-username: ${BACKEND_KAFKA_SASL_USERNAME:}

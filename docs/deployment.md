@@ -144,6 +144,9 @@ Set production values in Render's environment variable manager:
 | `BACKEND_KAFKA_SASL_USERNAME` | Yes for Redpanda Cloud | `ledgerstream-app` |
 | `BACKEND_KAFKA_SASL_PASSWORD` | Yes for Redpanda Cloud | Broker service account secret |
 | `BACKEND_KAFKA_SASL_JAAS_CONFIG` | Alternative to username/password | Full JAAS string, stored only as a secret |
+| `BACKEND_KAFKA_RETRY_MAX_ATTEMPTS` | Optional | `3` |
+| `BACKEND_KAFKA_RETRY_BACKOFF` | Optional | `2s` |
+| `BACKEND_KAFKA_DEAD_LETTER_SUFFIX` | Optional | `.DLT` |
 | `BACKEND_MARKET_TICK_CONSUMER_ENABLED` | Optional | `true` with hosted Kafka, `false` for API-only demo |
 | `BACKEND_ORDER_CREATED_CONSUMER_ENABLED` | Optional | `true` with hosted Kafka, `false` for API-only demo |
 | `DEMO_SEED_ENABLED` | Demo only | `true` for controlled demo seeding |
