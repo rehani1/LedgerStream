@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.ledgerstream.auth.AuthenticatedUser;
 import com.ledgerstream.portfolio.dto.LedgerPageResponse;
+import com.ledgerstream.portfolio.dto.PortfolioHistoryResponse;
 import com.ledgerstream.portfolio.dto.PortfolioPositionResponse;
 import com.ledgerstream.portfolio.dto.PortfolioSummaryResponse;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -17,9 +18,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class PortfolioController {
 
 	private final PortfolioQueryService portfolioQueryService;
+	private final PortfolioSnapshotService portfolioSnapshotService;
 
-	public PortfolioController(PortfolioQueryService portfolioQueryService) {
+	public PortfolioController(
+		PortfolioQueryService portfolioQueryService,
+		PortfolioSnapshotService portfolioSnapshotService
+	) {
 		this.portfolioQueryService = portfolioQueryService;
+		this.portfolioSnapshotService = portfolioSnapshotService;
 	}
 
 	@GetMapping
@@ -39,5 +45,14 @@ public class PortfolioController {
 		@RequestParam(defaultValue = "50") int size
 	) {
 		return portfolioQueryService.listLedger(authenticatedUser, page, size);
+	}
+
+	@GetMapping("/history")
+	public PortfolioHistoryResponse listHistory(
+		@AuthenticationPrincipal AuthenticatedUser authenticatedUser,
+		@RequestParam(defaultValue = "0") int page,
+		@RequestParam(defaultValue = "50") int size
+	) {
+		return portfolioSnapshotService.listHistory(authenticatedUser, page, size);
 	}
 }

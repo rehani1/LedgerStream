@@ -40,9 +40,9 @@ As of the June 28, 2026 smoke test, the Render backend health endpoint was `UP`;
 2. Log in with a demo account.
 3. Start deterministic market replay or verify it is already running.
 4. Watch live quote updates.
-5. Submit a paper market order.
+5. Submit a paper market or limit order.
 6. Show the order status and fill.
-7. Show portfolio cash and position updates.
+7. Show portfolio cash, position, and equity-history updates.
 8. Show append-only ledger entries.
 9. Show risk metrics.
 10. Show Prometheus or Grafana observability.
@@ -54,8 +54,8 @@ Capture real screenshots after the public frontend API base URL, backend CORS, a
 | Screenshot | Placeholder path | Capture criteria |
 | --- | --- | --- |
 | Dashboard | `docs/assets/demo/dashboard.png` | Authenticated dashboard showing symbols, quote cards, stream state, and chart. |
-| Order ticket | `docs/assets/demo/order-ticket.png` | Market BUY order form with symbol, side, quantity, and idempotent submit state. |
-| Portfolio | `docs/assets/demo/portfolio.png` | Portfolio summary with cash, total equity, positions, and P&L fields. |
+| Order ticket | `docs/assets/demo/order-ticket.png` | Order form with symbol, side, type, quantity, limit price when selected, and idempotent submit state. |
+| Portfolio | `docs/assets/demo/portfolio.png` | Portfolio summary with cash, total equity, positions, P&L fields, and equity-history chart. |
 | Ledger | `docs/assets/demo/ledger.png` | Append-only ledger table showing cash and quantity deltas from a fill. |
 | Risk dashboard | `docs/assets/demo/risk-dashboard.png` | Latest risk snapshot and historical risk chart. |
 | Grafana metrics | `docs/assets/observability/grafana-ledgerstream-overview.png` | `LedgerStream Overview` dashboard with API, order, tick, cache, JVM, and process panels. |
@@ -74,7 +74,7 @@ Target length: 75 seconds.
 | 15-25s | Dashboard quotes | "Market data enters through deterministic replay, is published as `market.tick`, cached in Redis, persisted in PostgreSQL, and streamed to the dashboard." |
 | 25-37s | Order ticket | "Orders require an `Idempotency-Key`, so duplicate submissions return the existing order instead of creating duplicate fills." |
 | 37-48s | Order history/fill | "The backend publishes `order.created`; the execution consumer uses the latest quote and writes the fill transactionally." |
-| 48-58s | Portfolio and ledger | "Cash, positions, fills, and append-only ledger entries are updated together inside the database transaction." |
+| 48-58s | Portfolio and ledger | "Cash, positions, fills, portfolio history, and append-only ledger entries are updated together inside the database transaction." |
 | 58-66s | Risk dashboard | "Risk snapshots track total equity, cash, gross exposure, concentration, and unrealized P&L." |
 | 66-75s | Grafana and CI | "The system exposes Prometheus metrics, structured logs, Grafana dashboards, CI, dependency scanning, and measured k6 baseline results." |
 
@@ -90,10 +90,11 @@ Use this when validating the deployed backend before browser testing. Do not pri
 4. Call `GET /api/portfolio`.
 5. Call `GET /api/portfolio/positions`.
 6. Call `GET /api/portfolio/ledger`.
-7. Call `GET /api/symbols/AAPL/quote`.
-8. Submit a small market order with a unique `Idempotency-Key`.
-9. Call `GET /api/orders`.
-10. Logout with `POST /api/auth/logout`.
+7. Call `GET /api/portfolio/history`.
+8. Call `GET /api/symbols/AAPL/quote`.
+9. Submit a small market or limit order with a unique `Idempotency-Key`.
+10. Call `GET /api/orders`.
+11. Logout with `POST /api/auth/logout`.
 
 If quote data has not been replayed into Redpanda/PostgreSQL/Redis yet, `GET /api/symbols/AAPL/quote` can return `404`. If the hosted Kafka credentials are missing or not mapped to the backend's `BACKEND_KAFKA_*` environment variables, order submission can stall or fail because the backend cannot publish `order.created`.
 
@@ -126,4 +127,4 @@ docker compose --profile worker up --build market-data-worker
 
 After logging in locally, open the dashboard to see supported symbols, latest quote rows, stream connection state, and the selected symbol price chart. The frontend reads historical quote data from `/api/symbols/{ticker}/history` and consumes the authenticated SSE quote stream with the current access token.
 
-Open the orders route, select a symbol, choose buy or sell, submit a market paper order, and watch the order history show pending, filled, rejected, or cancelled status. Then open the portfolio route to confirm cash, total equity, realized and unrealized P&L, open positions, and paginated ledger entries update from the backend portfolio APIs. Open the risk route to show total equity, gross exposure, largest-position concentration, unrealized P&L, and the historical snapshot chart.
+Open the orders route, select a symbol, choose buy or sell, choose market or limit, submit a paper order, and watch the order history show pending, filled, rejected, or cancelled status. Then open the portfolio route to confirm cash, total equity, realized and unrealized P&L, equity history, open positions, and paginated ledger entries update from the backend portfolio APIs. Open the risk route to show total equity, gross exposure, largest-position concentration, unrealized P&L, and the historical snapshot chart.

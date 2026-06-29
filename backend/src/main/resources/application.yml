@@ -73,6 +73,9 @@ ledgerstream:
     connectivity-consumer-enabled: ${BACKEND_KAFKA_CONNECTIVITY_CONSUMER_ENABLED:false}
     market-tick-consumer-enabled: ${BACKEND_MARKET_TICK_CONSUMER_ENABLED:true}
     order-created-consumer-enabled: ${BACKEND_ORDER_CREATED_CONSUMER_ENABLED:true}
+    retry-max-attempts: ${BACKEND_KAFKA_RETRY_MAX_ATTEMPTS:3}
+    retry-backoff: ${BACKEND_KAFKA_RETRY_BACKOFF:2s}
+    dead-letter-suffix: ${BACKEND_KAFKA_DEAD_LETTER_SUFFIX:.DLT}
     security-protocol: ${BACKEND_KAFKA_SECURITY_PROTOCOL:}
     sasl-mechanism: ${BACKEND_KAFKA_SASL_MECHANISM:}
     sasl-username: ${BACKEND_KAFKA_SASL_USERNAME:}
@@ -82,6 +85,14 @@ ledgerstream:
     enabled: ${MARKET_DATA_REPLAY_ENABLED:false}
     tick-topic: ${MARKET_DATA_TICK_TOPIC:market.tick}
     replay-speed: ${MARKET_DATA_REPLAY_SPEED:1.0}
+  archive:
+    enabled: ${BACKEND_ARCHIVE_ENABLED:false}
+    backend: ${BACKEND_ARCHIVE_BACKEND:filesystem}
+    local:
+      root-path: ${BACKEND_ARCHIVE_LOCAL_ROOT:./data/archives}
+    http-put:
+      base-url: ${BACKEND_ARCHIVE_HTTP_PUT_BASE_URL:}
+      authorization-header: ${BACKEND_ARCHIVE_HTTP_AUTHORIZATION_HEADER:}
   rate-limit:
     enabled: ${BACKEND_RATE_LIMIT_ENABLED:true}
     login:

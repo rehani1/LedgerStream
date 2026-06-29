@@ -6,7 +6,7 @@
 - Primary keys are application-generated UUIDs except `price_ticks.id`, which is a `BIGSERIAL` append key.
 - Cash, prices, quantities, exposure, and P&L use `NUMERIC` in PostgreSQL and `BigDecimal` in Java.
 - Financial mutations are user-scoped and enforced through foreign keys, repository predicates, and service authorization checks.
-- Ledger and risk history are append-only in normal operation.
+- Ledger, portfolio history, and risk history are append-only in normal operation.
 - Schema constraints encode domain invariants instead of leaving them only in service code.
 
 ## Entity Relationship Diagram
@@ -18,6 +18,7 @@ erDiagram
   users ||--o{ orders : places
   users ||--o{ positions : holds
   users ||--o{ ledger_entries : records
+  users ||--o{ portfolio_snapshots : has
   users ||--o{ risk_snapshots : has
   users ||--o{ audit_events : triggers
   symbols ||--o{ price_ticks : prices
@@ -29,6 +30,7 @@ erDiagram
   orders ||--o{ ledger_entries : reconciles
   fills ||--o{ ledger_entries : settles
   portfolios ||--o{ ledger_entries : contains
+  portfolios ||--o{ portfolio_snapshots : snapshots
 ```
 
 ## Table Catalog
@@ -44,15 +46,16 @@ erDiagram
 | `fills` | Execution records for filled orders. | References order and symbol; price and quantity must be positive; fee is non-negative and defaults to zero. |
 | `positions` | Current holdings per user and symbol. | Unique `(user_id, symbol_id)`; non-negative quantity and average cost; realized P&L accumulates on sells. |
 | `ledger_entries` | Append-only accounting journal. | References user and portfolio, plus optional order, fill, and symbol; stores cash and quantity deltas, execution price, entry type, and JSONB metadata. |
+| `portfolio_snapshots` | Point-in-time portfolio history read model. | Total equity, cash, market value, gross exposure, realized P&L, unrealized P&L, and timestamp; created after fills and accepted ticks for affected users. |
 | `risk_snapshots` | Point-in-time risk read model. | Total equity, cash, gross exposure, largest position percent, unrealized P&L, and timestamp; created after fills and accepted ticks for affected users. |
 | `audit_events` | Security, auth, financial, and admin audit trail. | Nullable user reference, action, request ID, optional `ip_hash`, user agent, timestamp, and safe JSONB metadata. |
 
 ## Relationships
 
-- `users` has one `portfolios` row and owns refresh tokens, orders, positions, ledger entries, risk snapshots, and audit events.
+- `users` has one `portfolios` row and owns refresh tokens, orders, positions, ledger entries, portfolio snapshots, risk snapshots, and audit events.
 - `symbols` is the reference table for market data, orders, fills, positions, and symbol-linked ledger entries.
 - `orders` can produce fills and can be linked to ledger entries for reconciliation.
-- `fills` are the execution records that drive portfolio cash updates, position updates, ledger entries, and risk snapshots.
+- `fills` are the execution records that drive portfolio cash updates, position updates, ledger entries, portfolio snapshots, and risk snapshots.
 - `ledger_entries` always belongs to a user and portfolio, and can link back to the order and fill that caused the accounting movement.
 - `audit_events.user_id` is nullable so safe auth failures or system actions can still be recorded when a user is unknown.
 
@@ -82,12 +85,13 @@ erDiagram
 | `idx_price_ticks_symbol_ts_desc` | Latest quote fallback and bounded quote history reads. |
 | `uq_price_ticks_symbol_ts_source` | Deterministic tick replay idempotency. |
 | `idx_orders_user_created_desc` | User-scoped order history. |
-| `idx_orders_symbol_status` | Pending order evaluation by symbol when matching expands beyond market orders. |
+| `idx_orders_symbol_status` | Pending order evaluation by symbol for limit matching and diagnostics. |
 | `idx_fills_order_id` | Order detail and reconciliation queries. |
 | `idx_fills_symbol_filled_at` | Symbol execution history and diagnostics. |
 | `uq_positions_user_symbol` | Current position lookup and settlement update. |
 | `idx_ledger_entries_user_created_desc` | Paginated user ledger view. |
 | `idx_ledger_entries_order_id` | Order-to-ledger reconciliation. |
+| `idx_portfolio_snapshots_user_created_desc` | Historical portfolio equity chart and paginated history reads. |
 | `idx_risk_snapshots_user_created_desc` | Latest and historical risk views. |
 | `idx_audit_events_user_created_desc` | User audit review. |
 | `idx_audit_events_action_created_desc` | Security and operational action review. |
@@ -109,24 +113,24 @@ flowchart TD
   Checks -->|fails| Reject[Update order REJECTED + reason + audit event]
   Checks -->|passes| Settle[Insert fill, update order FILLED, update cash, update position]
   Settle --> Ledger[Append ledger entry]
-  Ledger --> Risk[Append risk snapshot]
-  Risk --> Events[Publish order.filled and risk.updated]
+  Ledger --> History[Append portfolio and risk snapshots]
+  History --> Events[Publish order.filled and risk.updated]
 ```
 
-Order creation and market execution are intentionally separate service flows. Submission records the user's order intent and publishes `order.created`. Execution reloads the stored order, verifies it is still `PENDING` and `MARKET`, checks the latest executable quote, and then settles or rejects the order.
+Order creation and execution are intentionally separate service flows. Submission records the user's order intent and publishes `order.created`. Execution reloads the stored order, verifies it is still `PENDING`, checks the latest executable quote, and then settles, rejects, or leaves a non-crossed limit order pending. Accepted market ticks also re-evaluate pending limit orders for the ticked symbol.
 
-The market execution transaction includes order status, fill insertion, portfolio cash update, position update, ledger append, and risk snapshot creation. `PortfolioLedgerService.appendFill` uses mandatory transaction propagation, so ledger rows cannot be appended outside the settlement transaction.
+The order execution transaction includes order status, fill insertion, portfolio cash update, position update, ledger append, portfolio history snapshot creation, and risk snapshot creation. `PortfolioLedgerService.appendFill` uses mandatory transaction propagation, so ledger rows cannot be appended outside the settlement transaction.
 
 Kafka event publishing is currently issued from service code and is not backed by a database outbox. The database transaction protects the financial state; an outbox is the next reliability step if event delivery must be recovered after process failure.
 
 ## Order Lifecycle
 
 - `PENDING`: created by `POST /api/orders` after validation and idempotency lookup.
-- `FILLED`: assigned by market execution after a fill is created and settlement completes.
-- `REJECTED`: assigned by market execution when no quote exists, no positive executable price exists, the buyer has insufficient cash, the seller has insufficient shares, or the portfolio is missing.
+- `FILLED`: assigned by order execution after a fill is created and settlement completes.
+- `REJECTED`: assigned by order execution when a market order has no quote, no positive executable price exists, the buyer has insufficient cash, the seller has insufficient shares, or the portfolio is missing.
 - `CANCELLED`: assigned by the user cancellation endpoint while the order is still pending.
 
-Attempts to cancel `FILLED`, `CANCELLED`, or `REJECTED` orders return a conflict. Limit orders can be stored as `PENDING`, but limit matching is not implemented yet.
+Attempts to cancel `FILLED`, `CANCELLED`, or `REJECTED` orders return a conflict. Limit orders stay `PENDING` while not crossed, can be cancelled while pending, and fill when a later quote crosses their limit.
 
 ## Accounting Rules
 
@@ -142,7 +146,7 @@ Attempts to cancel `FILLED`, `CANCELLED`, or `REJECTED` orders return a conflict
 
 `ledger_entries` is the accounting journal. Normal application code inserts ledger rows through `PortfolioLedgerService` and does not update or delete existing rows.
 
-Each filled market order currently creates one ledger row:
+Each filled order currently creates one ledger row:
 
 | Entry type | Cash delta | Quantity delta | Links |
 | --- | ---: | ---: | --- |
@@ -159,14 +163,28 @@ Portfolio API reads are user-scoped through the authenticated user ID:
 - `positions` provides quantity, average cost, and realized P&L.
 - Latest quote data provides valuation price, market value, total equity, and unrealized P&L when available.
 - `ledger_entries` provides zero-based paginated journal rows, bounded to a maximum page size of 100.
+- `portfolio_snapshots` provides zero-based paginated equity, cash, exposure, and P&L history for the frontend equity chart.
 
 When a latest quote is unavailable for a position, the read model uses average cost as the valuation fallback. The response marks this as `COST_BASIS_FALLBACK`, leaves `lastPrice` null, and reports zero unrealized P&L for that position. Latest-quote valuations use `LATEST_QUOTE`.
 
 ## Market Data Persistence
 
-`market.tick` ingestion validates symbol, timestamp, bid, ask, last price, volume, and source. Accepted ticks resolve the symbol, insert a `price_ticks` row if `(symbol_id, ts, source)` has not already been seen, update the Redis latest quote cache, broadcast matching SSE subscribers, and record risk snapshots for users with open positions in that symbol.
+`market.tick` ingestion validates symbol, timestamp, bid, ask, last price, volume, and source. Accepted ticks resolve the symbol, insert a `price_ticks` row if `(symbol_id, ts, source)` has not already been seen, update the Redis latest quote cache, broadcast matching SSE subscribers, record portfolio and risk snapshots for users with open positions in that symbol, and re-check pending limit orders for that symbol.
 
 Redis stores latest quotes under `latest_quote:{SYMBOL}`. No TTL is currently applied; quote freshness is determined from the embedded timestamp, and quote APIs fall back to PostgreSQL if Redis misses or read access fails.
+
+## Portfolio Snapshot Formulas
+
+`portfolio_snapshots` rows are point-in-time records created after successful fills and after accepted market ticks for users with open positions in the ticked symbol.
+
+- `cash`: current portfolio cash rounded to 2 decimal places.
+- `market_value`: sum of signed position market values rounded to 2 decimal places.
+- `gross_exposure`: sum of absolute position market values rounded to 2 decimal places.
+- `total_equity`: cash plus signed market value rounded to 2 decimal places.
+- `realized_pnl`: sum of realized P&L on current position rows rounded to 2 decimal places.
+- `unrealized_pnl`: sum of `(latest price - avg_cost) * quantity` rounded to 2 decimal places.
+
+Portfolio history valuation uses the latest quote `last` price when available. If no latest quote exists, the service uses average cost and contributes `0.00` unrealized P&L for that position.
 
 ## Risk Snapshot Formulas
 

@@ -3,9 +3,11 @@ import logging
 import signal
 import sys
 import threading
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Iterable, Optional
 
+from ledgerstream_market_data.backtest import BacktestError, result_to_json, run_backtest
 from ledgerstream_market_data.csv_ticks import CsvMarketDataError
 from ledgerstream_market_data.logging_config import configure_logging
 from ledgerstream_market_data.producer import ProducerError
@@ -15,7 +17,11 @@ from ledgerstream_market_data.settings import MarketDataSettings
 log = logging.getLogger(__name__)
 
 
-class ReplayCommandError(Exception):
+class CommandError(Exception):
+	"""Raised for user-correctable command errors."""
+
+
+class ReplayCommandError(CommandError):
 	"""Raised for user-correctable replay command errors."""
 
 
@@ -25,6 +31,26 @@ def positive_float(value: str) -> float:
 	except ValueError as ex:
 		raise argparse.ArgumentTypeError("must be a number") from ex
 	if parsed <= 0:
+		raise argparse.ArgumentTypeError("must be greater than zero")
+	return parsed
+
+
+def positive_int(value: str) -> int:
+	try:
+		parsed = int(value)
+	except ValueError as ex:
+		raise argparse.ArgumentTypeError("must be an integer") from ex
+	if parsed <= 0:
+		raise argparse.ArgumentTypeError("must be greater than zero")
+	return parsed
+
+
+def positive_decimal(value: str) -> Decimal:
+	try:
+		parsed = Decimal(value)
+	except InvalidOperation as ex:
+		raise argparse.ArgumentTypeError("must be a decimal number") from ex
+	if parsed <= Decimal("0"):
 		raise argparse.ArgumentTypeError("must be greater than zero")
 	return parsed
 
@@ -95,6 +121,43 @@ def build_parser(settings: Optional[MarketDataSettings] = None) -> argparse.Argu
 		help="Kafka producer flush timeout in seconds.",
 	)
 	replay.set_defaults(handler=run_replay)
+
+	backtest = subparsers.add_parser("backtest", help="Run deterministic fixture-based backtests.")
+	backtest.add_argument(
+		"--file",
+		default=str(settings.data_path),
+		help="CSV tick file to backtest.",
+	)
+	backtest.add_argument(
+		"--symbol",
+		default="AAPL",
+		help="Symbol to backtest from the fixture.",
+	)
+	backtest.add_argument(
+		"--strategy",
+		choices=["buy-and-hold", "moving-average-crossover"],
+		default="moving-average-crossover",
+		help="Simple backtest strategy.",
+	)
+	backtest.add_argument(
+		"--initial-cash",
+		type=positive_decimal,
+		default=Decimal("10000.00"),
+		help="Starting cash for the deterministic simulation.",
+	)
+	backtest.add_argument(
+		"--short-window",
+		type=positive_int,
+		default=2,
+		help="Short moving-average window for moving-average-crossover.",
+	)
+	backtest.add_argument(
+		"--long-window",
+		type=positive_int,
+		default=3,
+		help="Long moving-average window for moving-average-crossover.",
+	)
+	backtest.set_defaults(handler=run_backtest_command)
 	return parser
 
 
@@ -107,7 +170,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
 	args.shutdown_event = shutdown_event
 	try:
 		return args.handler(args)
-	except ReplayCommandError as ex:
+	except CommandError as ex:
 		print(f"error: {ex}", file=sys.stderr)
 		return 2
 
@@ -145,6 +208,39 @@ def run_replay(args: argparse.Namespace) -> int:
 			"speed": args.speed,
 			"dry_run": args.dry_run,
 			"tick_count": tick_count,
+		},
+	)
+	return 0
+
+
+def run_backtest_command(args: argparse.Namespace) -> int:
+	backtest_file = Path(args.file)
+	if not backtest_file.exists():
+		raise ReplayCommandError(f"backtest file not found: {backtest_file}")
+	if not backtest_file.is_file():
+		raise ReplayCommandError(f"backtest path is not a file: {backtest_file}")
+
+	try:
+		result = run_backtest(
+			backtest_file,
+			symbol=args.symbol,
+			strategy=args.strategy,
+			initial_cash=args.initial_cash,
+			short_window=args.short_window,
+			long_window=args.long_window,
+		)
+	except (BacktestError, CsvMarketDataError) as ex:
+		raise ReplayCommandError(str(ex)) from ex
+
+	print(result_to_json(result))
+	log.info(
+		"Backtest completed",
+		extra={
+			"backtest_file": str(backtest_file),
+			"symbol": result.symbol,
+			"strategy": result.strategy,
+			"ticks": result.ticks,
+			"number_of_trades": result.number_of_trades,
 		},
 	)
 	return 0

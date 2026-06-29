@@ -103,6 +103,26 @@ export type LedgerPageResponse = {
   totalPages: number;
 };
 
+export type PortfolioSnapshot = {
+  id: string;
+  portfolioId: string;
+  totalEquity: number;
+  cash: number;
+  marketValue: number;
+  grossExposure: number;
+  realizedPnl: number;
+  unrealizedPnl: number;
+  createdAt: string;
+};
+
+export type PortfolioHistoryResponse = {
+  snapshots: PortfolioSnapshot[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+};
+
 export type OrderSide = 'BUY' | 'SELL';
 
 export type OrderType = 'MARKET' | 'LIMIT';

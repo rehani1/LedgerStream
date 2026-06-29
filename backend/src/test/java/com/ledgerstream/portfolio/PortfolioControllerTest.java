@@ -19,7 +19,9 @@ import com.ledgerstream.domain.model.LedgerEntryType;
 import com.ledgerstream.domain.model.UserRole;
 import com.ledgerstream.portfolio.dto.LedgerEntryResponse;
 import com.ledgerstream.portfolio.dto.LedgerPageResponse;
+import com.ledgerstream.portfolio.dto.PortfolioHistoryResponse;
 import com.ledgerstream.portfolio.dto.PortfolioPositionResponse;
+import com.ledgerstream.portfolio.dto.PortfolioSnapshotResponse;
 import com.ledgerstream.portfolio.dto.PortfolioSummaryResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,6 +45,9 @@ class PortfolioControllerTest {
 
 	@MockitoBean
 	private PortfolioQueryService portfolioQueryService;
+
+	@MockitoBean
+	private PortfolioSnapshotService portfolioSnapshotService;
 
 	@Test
 	void portfolioSummaryRequiresAuthentication() throws Exception {
@@ -113,6 +118,25 @@ class PortfolioControllerTest {
 			.andExpect(jsonPath("$.entries[0].metadata.orderSide").value("BUY"));
 	}
 
+	@Test
+	void listHistoryReturnsPagedSnapshots() throws Exception {
+		PortfolioHistoryResponse response = new PortfolioHistoryResponse(List.of(snapshotResponse()), 0, 25, 1, 1);
+		when(portfolioSnapshotService.listHistory(any(AuthenticatedUser.class), eq(0), eq(25))).thenReturn(response);
+
+		mockMvc.perform(get("/api/portfolio/history")
+				.param("page", "0")
+				.param("size", "25")
+				.with(authentication(authenticatedUser())))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.page").value(0))
+			.andExpect(jsonPath("$.size").value(25))
+			.andExpect(jsonPath("$.totalElements").value(1))
+			.andExpect(jsonPath("$.snapshots[0].totalEquity").value(1600.00))
+			.andExpect(jsonPath("$.snapshots[0].cash").value(1000.00))
+			.andExpect(jsonPath("$.snapshots[0].marketValue").value(600.00))
+			.andExpect(jsonPath("$.snapshots[0].unrealizedPnl").value(100.00));
+	}
+
 	private PortfolioPositionResponse positionResponse() {
 		return new PortfolioPositionResponse(
 			UUID.randomUUID(),
@@ -142,6 +166,20 @@ class PortfolioControllerTest {
 			UUID.randomUUID(),
 			NOW,
 			Map.of("orderSide", "BUY", "orderType", "MARKET", "fee", new BigDecimal("0.00"))
+		);
+	}
+
+	private PortfolioSnapshotResponse snapshotResponse() {
+		return new PortfolioSnapshotResponse(
+			UUID.randomUUID(),
+			UUID.randomUUID(),
+			new BigDecimal("1600.00"),
+			new BigDecimal("1000.00"),
+			new BigDecimal("600.00"),
+			new BigDecimal("600.00"),
+			new BigDecimal("12.34"),
+			new BigDecimal("100.00"),
+			NOW
 		);
 	}
 

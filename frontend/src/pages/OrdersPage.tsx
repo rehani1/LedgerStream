@@ -4,17 +4,20 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { cancelOrder, createOrder, listOrders } from '../api/orders';
 import { listSymbols } from '../api/quotes';
-import type { CreateOrderRequest, OrderResponse, OrderSide, OrderStatus } from '../api/types';
+import type { CreateOrderRequest, OrderResponse, OrderSide, OrderStatus, OrderType } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 
 const orderSides: OrderSide[] = ['BUY', 'SELL'];
+const orderTypes: OrderType[] = ['MARKET', 'LIMIT'];
 
 export function OrdersPage() {
   const auth = useAuth();
   const queryClient = useQueryClient();
   const [selectedSymbol, setSelectedSymbol] = useState('');
   const [side, setSide] = useState<OrderSide>('BUY');
+  const [orderType, setOrderType] = useState<OrderType>('MARKET');
   const [quantity, setQuantity] = useState('1');
+  const [limitPrice, setLimitPrice] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const [lastOrder, setLastOrder] = useState<OrderResponse | null>(null);
   const [lastOrderMessage, setLastOrderMessage] = useState('Order accepted');
@@ -54,6 +57,7 @@ export function OrdersPage() {
     queryClient.invalidateQueries({ queryKey: ['portfolio-summary', userId] });
     queryClient.invalidateQueries({ queryKey: ['portfolio-positions', userId] });
     queryClient.invalidateQueries({ queryKey: ['portfolio-ledger', userId] });
+    queryClient.invalidateQueries({ queryKey: ['portfolio-history', userId] });
     queryClient.invalidateQueries({ queryKey: ['risk-latest', userId] });
     queryClient.invalidateQueries({ queryKey: ['risk-history', userId] });
   }
@@ -85,7 +89,8 @@ export function OrdersPage() {
     event.preventDefault();
 
     const parsedQuantity = Number(quantity);
-    const validationMessage = validateOrder(selectedSymbol, parsedQuantity);
+    const parsedLimitPrice = orderType === 'LIMIT' ? Number(limitPrice) : null;
+    const validationMessage = validateOrder(selectedSymbol, parsedQuantity, orderType, parsedLimitPrice);
     if (validationMessage) {
       setFormError(validationMessage);
       return;
@@ -97,8 +102,9 @@ export function OrdersPage() {
       request: {
         symbol: selectedSymbol,
         side,
-        orderType: 'MARKET',
-        quantity: parsedQuantity
+        orderType,
+        quantity: parsedQuantity,
+        limitPrice: orderType === 'LIMIT' ? parsedLimitPrice : null
       },
       idempotencyKey: makeIdempotencyKey()
     });
@@ -129,7 +135,7 @@ export function OrdersPage() {
         <form className="form-panel order-ticket" onSubmit={handleSubmit} aria-label="Order ticket" noValidate>
           <div className="table-heading compact-heading">
             <h2>Order Ticket</h2>
-            <span>Market</span>
+            <span>{formatOrderType(orderType)}</span>
           </div>
 
           <label>
@@ -165,6 +171,24 @@ export function OrdersPage() {
             </div>
           </fieldset>
 
+          <fieldset className="segmented-field">
+            <legend>Type</legend>
+            <div className="segmented-control">
+              {orderTypes.map((availableType) => (
+                <button
+                  key={availableType}
+                  type="button"
+                  className={orderType === availableType ? 'active' : undefined}
+                  aria-pressed={orderType === availableType}
+                  onClick={() => setOrderType(availableType)}
+                  disabled={isSubmitting}
+                >
+                  {formatOrderType(availableType)}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+
           <label>
             Quantity
             <input
@@ -177,6 +201,21 @@ export function OrdersPage() {
               disabled={isSubmitting}
             />
           </label>
+
+          {orderType === 'LIMIT' && (
+            <label>
+              Limit price
+              <input
+                type="number"
+                min="0.000001"
+                step="0.000001"
+                inputMode="decimal"
+                value={limitPrice}
+                onChange={(event) => setLimitPrice(event.target.value)}
+                disabled={isSubmitting}
+              />
+            </label>
+          )}
 
           <button
             type="submit"
@@ -195,6 +234,10 @@ export function OrdersPage() {
             <div className="order-result" aria-live="polite">
               <span>{lastOrderMessage}</span>
               <strong>{lastOrder.symbol} {formatSide(lastOrder.side)} {formatQuantity(lastOrder.quantity)}</strong>
+              <small>
+                {formatOrderType(lastOrder.orderType)}
+                {lastOrder.limitPrice == null ? '' : ` @ ${formatPrice(lastOrder.limitPrice)}`}
+              </small>
               <OrderStatusBadge status={lastOrder.status} />
               {lastOrder.rejectionReason && <small>{lastOrder.rejectionReason}</small>}
             </div>
@@ -213,6 +256,7 @@ export function OrdersPage() {
                 <th>Symbol</th>
                 <th>Side</th>
                 <th>Type</th>
+                <th>Limit</th>
                 <th>Quantity</th>
                 <th>Status</th>
                 <th>Reason</th>
@@ -222,12 +266,12 @@ export function OrdersPage() {
             <tbody>
               {ordersQuery.isLoading && (
                 <tr>
-                  <td colSpan={8}>Loading orders</td>
+                  <td colSpan={9}>Loading orders</td>
                 </tr>
               )}
               {!ordersQuery.isLoading && orders.length === 0 && (
                 <tr>
-                  <td colSpan={8}>No orders submitted</td>
+                  <td colSpan={9}>No orders submitted</td>
                 </tr>
               )}
               {orders.map((order) => (
@@ -238,6 +282,7 @@ export function OrdersPage() {
                   </td>
                   <td>{formatSide(order.side)}</td>
                   <td>{formatOrderType(order.orderType)}</td>
+                  <td>{order.limitPrice == null ? '—' : formatPrice(order.limitPrice)}</td>
                   <td>{formatQuantity(order.quantity)}</td>
                   <td>
                     <OrderStatusBadge status={order.status} />
@@ -273,13 +318,22 @@ function OrderStatusBadge({ status }: { status: OrderStatus }) {
   return <span className={`order-status status-${status.toLowerCase()}`}>{formatOrderStatus(status)}</span>;
 }
 
-function validateOrder(symbol: string, quantity: number) {
+function validateOrder(
+  symbol: string,
+  quantity: number,
+  orderType: OrderType,
+  limitPrice: number | null
+) {
   if (!symbol) {
     return 'Select a symbol.';
   }
 
   if (!Number.isFinite(quantity) || quantity <= 0) {
     return 'Enter a quantity greater than zero.';
+  }
+
+  if (orderType === 'LIMIT' && (limitPrice == null || !Number.isFinite(limitPrice) || limitPrice <= 0)) {
+    return 'Enter a limit price greater than zero.';
   }
 
   return null;
@@ -308,6 +362,15 @@ function formatSide(orderSide: OrderSide) {
 function formatQuantity(value: number) {
   return new Intl.NumberFormat('en-US', {
     minimumFractionDigits: 0,
+    maximumFractionDigits: 6
+  }).format(value);
+}
+
+function formatPrice(value: number) {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
     maximumFractionDigits: 6
   }).format(value);
 }

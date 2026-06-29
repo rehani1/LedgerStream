@@ -11,6 +11,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -36,6 +37,7 @@ import com.ledgerstream.events.OrderCreatedEvent;
 import com.ledgerstream.events.OrderFilledEvent;
 import com.ledgerstream.metrics.LedgerStreamMetrics;
 import com.ledgerstream.portfolio.PortfolioLedgerService;
+import com.ledgerstream.portfolio.PortfolioSnapshotService;
 import com.ledgerstream.quotes.QuoteQueryService;
 import com.ledgerstream.quotes.dto.QuoteResponse;
 import com.ledgerstream.risk.RiskCalculationService;
@@ -77,6 +79,9 @@ class OrderExecutionServiceTest {
 	private RiskCalculationService riskCalculationService;
 
 	@Mock
+	private PortfolioSnapshotService portfolioSnapshotService;
+
+	@Mock
 	private EventPublisher eventPublisher;
 
 	@Mock
@@ -98,6 +103,7 @@ class OrderExecutionServiceTest {
 			quoteQueryService,
 			portfolioLedgerService,
 			riskCalculationService,
+			portfolioSnapshotService,
 			eventPublisher,
 			auditService,
 			new LedgerStreamMetrics(meterRegistry),
@@ -151,6 +157,7 @@ class OrderExecutionServiceTest {
 			new BigDecimal("10.000000")
 		);
 		verify(riskCalculationService).recordSnapshot(USER_ID);
+		verify(portfolioSnapshotService).recordSnapshot(USER_ID);
 
 		ArgumentCaptor<OrderFilledEvent> eventCaptor = ArgumentCaptor.forClass(OrderFilledEvent.class);
 		verify(eventPublisher).publishOrderFilled(eventCaptor.capture());
@@ -317,6 +324,7 @@ class OrderExecutionServiceTest {
 		verify(fillRepository, never()).save(any(Fill.class));
 		verify(portfolioLedgerService, never()).appendFill(any(), any(), any(), any());
 		verify(riskCalculationService, never()).recordSnapshot(any());
+		verify(portfolioSnapshotService, never()).recordSnapshot(any());
 		verify(eventPublisher, never()).publishOrderFilled(any(OrderFilledEvent.class));
 		assertThat(counter(LedgerStreamMetrics.ORDERS_REJECTED)).isEqualTo(1.0);
 		assertThat(counter(LedgerStreamMetrics.ORDERS_FILLED)).isZero();
@@ -341,6 +349,7 @@ class OrderExecutionServiceTest {
 		verify(positionRepository, never()).save(any(Position.class));
 		verify(portfolioLedgerService, never()).appendFill(any(), any(), any(), any());
 		verify(riskCalculationService, never()).recordSnapshot(any());
+		verify(portfolioSnapshotService, never()).recordSnapshot(any());
 		verify(eventPublisher, never()).publishOrderFilled(any(OrderFilledEvent.class));
 	}
 
@@ -375,6 +384,7 @@ class OrderExecutionServiceTest {
 		verify(fillRepository, never()).save(any(Fill.class));
 		verify(portfolioLedgerService, never()).appendFill(any(), any(), any(), any());
 		verify(riskCalculationService, never()).recordSnapshot(any());
+		verify(portfolioSnapshotService, never()).recordSnapshot(any());
 		verify(eventPublisher, never()).publishOrderFilled(any(OrderFilledEvent.class));
 	}
 
@@ -392,17 +402,132 @@ class OrderExecutionServiceTest {
 		verify(fillRepository, never()).save(any(Fill.class));
 		verify(portfolioLedgerService, never()).appendFill(any(), any(), any(), any());
 		verify(riskCalculationService, never()).recordSnapshot(any());
+		verify(portfolioSnapshotService, never()).recordSnapshot(any());
 	}
 
 	@Test
-	void limitOrdersRemainPendingForLaterExecutionFlow() {
+	void limitBuyFillsWhenLatestPriceIsAtOrBelowLimit() {
 		TradeOrder order = order(OrderSide.BUY, OrderType.LIMIT, OrderStatus.PENDING, new BigDecimal("1.000000"));
+		Portfolio portfolio = portfolio(new BigDecimal("500.00"));
+		when(quoteQueryService.getLatestQuote("AAPL")).thenReturn(quote(
+			new BigDecimal("178.900000"),
+			new BigDecimal("179.100000"),
+			new BigDecimal("179.000000")
+		));
+		when(portfolioRepository.findByUserId(USER_ID)).thenReturn(Optional.of(portfolio));
+		when(positionRepository.findByUserIdAndSymbolTicker(USER_ID, "AAPL")).thenReturn(Optional.empty());
+		when(orderRepository.save(order)).thenReturn(order);
+		when(fillRepository.save(any(Fill.class))).thenAnswer(invocation -> persistFill(invocation.getArgument(0)));
+
+		executionService.execute(order);
+
+		ArgumentCaptor<Fill> fillCaptor = ArgumentCaptor.forClass(Fill.class);
+		verify(fillRepository).save(fillCaptor.capture());
+		assertThat(fillCaptor.getValue().getPrice()).isEqualByComparingTo("179.000000");
+		assertThat(order.getStatus()).isEqualTo(OrderStatus.FILLED);
+		assertThat(portfolio.getCashBalance()).isEqualByComparingTo("321.00");
+		verify(eventPublisher).publishOrderFilled(any(OrderFilledEvent.class));
+		assertThat(counter(LedgerStreamMetrics.ORDERS_FILLED)).isEqualTo(1.0);
+	}
+
+	@Test
+	void limitSellFillsWhenLatestPriceIsAtOrAboveLimit() {
+		TradeOrder order = order(OrderSide.SELL, OrderType.LIMIT, OrderStatus.PENDING, new BigDecimal("2.000000"));
+		Portfolio portfolio = portfolio(new BigDecimal("1000.00"));
+		Position position = position(new BigDecimal("5.000000"));
+		when(quoteQueryService.getLatestQuote("AAPL")).thenReturn(quote(
+			new BigDecimal("180.900000"),
+			new BigDecimal("181.100000"),
+			new BigDecimal("181.000000")
+		));
+		when(positionRepository.findByUserIdAndSymbolTicker(USER_ID, "AAPL")).thenReturn(Optional.of(position));
+		when(portfolioRepository.findByUserId(USER_ID)).thenReturn(Optional.of(portfolio));
+		when(orderRepository.save(order)).thenReturn(order);
+		when(fillRepository.save(any(Fill.class))).thenAnswer(invocation -> persistFill(invocation.getArgument(0)));
+
+		executionService.execute(order);
+
+		ArgumentCaptor<Fill> fillCaptor = ArgumentCaptor.forClass(Fill.class);
+		verify(fillRepository).save(fillCaptor.capture());
+		assertThat(fillCaptor.getValue().getPrice()).isEqualByComparingTo("181.000000");
+		assertThat(order.getStatus()).isEqualTo(OrderStatus.FILLED);
+		assertThat(portfolio.getCashBalance()).isEqualByComparingTo("1362.00");
+		assertThat(position.getQuantity()).isEqualByComparingTo("3.000000");
+		verify(eventPublisher).publishOrderFilled(any(OrderFilledEvent.class));
+	}
+
+	@Test
+	void limitBuyRemainsPendingWhenLatestPriceIsAboveLimit() {
+		TradeOrder order = order(OrderSide.BUY, OrderType.LIMIT, OrderStatus.PENDING, new BigDecimal("1.000000"));
+		when(quoteQueryService.getLatestQuote("AAPL")).thenReturn(quote(
+			new BigDecimal("180.900000"),
+			new BigDecimal("181.100000"),
+			new BigDecimal("181.000000")
+		));
 
 		executionService.execute(order);
 
 		assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING);
-		verify(quoteQueryService, never()).getLatestQuote("AAPL");
 		verify(orderRepository, never()).save(any(TradeOrder.class));
+		verify(fillRepository, never()).save(any(Fill.class));
+		verify(eventPublisher, never()).publishOrderFilled(any(OrderFilledEvent.class));
+		assertThat(counter(LedgerStreamMetrics.ORDERS_FILLED)).isZero();
+		assertThat(counter(LedgerStreamMetrics.ORDERS_REJECTED)).isZero();
+	}
+
+	@Test
+	void limitSellRemainsPendingWhenLatestPriceIsBelowLimit() {
+		TradeOrder order = order(OrderSide.SELL, OrderType.LIMIT, OrderStatus.PENDING, new BigDecimal("1.000000"));
+		when(quoteQueryService.getLatestQuote("AAPL")).thenReturn(quote(
+			new BigDecimal("178.900000"),
+			new BigDecimal("179.100000"),
+			new BigDecimal("179.000000")
+		));
+
+		executionService.execute(order);
+
+		assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING);
+		verify(orderRepository, never()).save(any(TradeOrder.class));
+		verify(fillRepository, never()).save(any(Fill.class));
+		verify(eventPublisher, never()).publishOrderFilled(any(OrderFilledEvent.class));
+	}
+
+	@Test
+	void missingQuoteLeavesLimitOrderPending() {
+		TradeOrder order = order(OrderSide.BUY, OrderType.LIMIT, OrderStatus.PENDING, new BigDecimal("1.000000"));
+		when(quoteQueryService.getLatestQuote("AAPL"))
+			.thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "No quote available"));
+
+		executionService.execute(order);
+
+		assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING);
+		assertThat(order.getRejectionReason()).isNull();
+		verify(orderRepository, never()).save(any(TradeOrder.class));
+		verify(fillRepository, never()).save(any(Fill.class));
+		verify(auditService, never()).record(any(), any(), any(), any());
+	}
+
+	@Test
+	void executePendingLimitOrdersLoadsPendingLimitOrdersForSymbol() {
+		TradeOrder order = order(OrderSide.BUY, OrderType.LIMIT, OrderStatus.PENDING, new BigDecimal("1.000000"));
+		Portfolio portfolio = portfolio(new BigDecimal("500.00"));
+		when(orderRepository.findBySymbolTickerAndStatusAndOrderType("AAPL", OrderStatus.PENDING, OrderType.LIMIT))
+			.thenReturn(List.of(order));
+		when(quoteQueryService.getLatestQuote("AAPL")).thenReturn(quote(
+			new BigDecimal("178.900000"),
+			new BigDecimal("179.100000"),
+			new BigDecimal("179.000000")
+		));
+		when(portfolioRepository.findByUserId(USER_ID)).thenReturn(Optional.of(portfolio));
+		when(positionRepository.findByUserIdAndSymbolTicker(USER_ID, "AAPL")).thenReturn(Optional.empty());
+		when(orderRepository.save(order)).thenReturn(order);
+		when(fillRepository.save(any(Fill.class))).thenAnswer(invocation -> persistFill(invocation.getArgument(0)));
+
+		executionService.executePendingLimitOrders("AAPL");
+
+		assertThat(order.getStatus()).isEqualTo(OrderStatus.FILLED);
+		verify(orderRepository).findBySymbolTickerAndStatusAndOrderType("AAPL", OrderStatus.PENDING, OrderType.LIMIT);
+		verify(fillRepository).save(any(Fill.class));
 	}
 
 	@Test

@@ -5,6 +5,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import com.ledgerstream.domain.model.OrderStatus;
+import com.ledgerstream.domain.model.OrderType;
 import com.ledgerstream.domain.model.TradeOrder;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -19,4 +20,6 @@ public interface OrderRepository extends JpaRepository<TradeOrder, UUID> {
 	Optional<TradeOrder> findByUserIdAndIdempotencyKey(UUID userId, String idempotencyKey);
 
 	List<TradeOrder> findBySymbolTickerAndStatus(String ticker, OrderStatus status);
+
+	List<TradeOrder> findBySymbolTickerAndStatusAndOrderType(String ticker, OrderStatus status, OrderType orderType);
 }

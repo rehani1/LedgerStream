@@ -56,12 +56,15 @@ Detailed system design: [Architecture](docs/architecture.md)
 - Symbol and quote APIs with Redis hot-cache reads and PostgreSQL fallback.
 - Authenticated SSE quote streaming.
 - Deterministic CSV market replay through a Python worker.
+- Deterministic fixture backtests for buy-and-hold and moving-average crossover strategies.
 - Kafka-compatible JSON event contracts for `market.tick`, `order.created`, `order.filled`, `portfolio.updated`, `risk.updated`, and `audit.event`.
 - Idempotent paper-order creation, user-scoped order history, and cancellation for pending orders.
-- Market order simulation with explicit rejection reasons for missing quotes, insufficient cash, insufficient shares, and missing portfolio state.
-- Transactional fill settlement that updates cash, positions, ledger entries, and risk snapshots.
-- Portfolio summary, positions, ledger, latest risk, and risk history APIs.
+- Market order simulation with explicit rejection reasons and crossed limit-order simulation with pending cancellation support.
+- Transactional fill settlement that updates cash, positions, ledger entries, portfolio history, and risk snapshots.
+- Portfolio summary, positions, ledger, portfolio history, latest risk, and risk history APIs.
+- Optional admin-triggered portfolio snapshot archive exports to local filesystem or HTTP PUT storage gateways.
 - Structured JSON logs, request IDs, Prometheus metrics, and Grafana provisioning.
+- Kafka consumer retry policy with dead-letter topics for malformed or exhausted events.
 
 ## Tech Stack
 
@@ -82,7 +85,8 @@ LedgerStream models paper trading with explicit accounting boundaries:
 - `symbols` and `price_ticks` store supported instruments and market data history.
 - `portfolios`, `positions`, `orders`, and `fills` store trading state.
 - `ledger_entries` is append-only and records cash and quantity deltas.
-- `risk_snapshots` stores portfolio exposure and P&L snapshots.
+- `portfolio_snapshots` stores equity, cash, exposure, and P&L history.
+- `risk_snapshots` stores portfolio exposure and concentration snapshots.
 - `audit_events` records security and trading actions with safe metadata.
 
 Full schema and constraints: [Data Model](docs/data-model.md)
@@ -96,27 +100,28 @@ Implemented groups:
 - Auth: register, login, refresh, logout, current user.
 - Symbols and quotes: symbol catalog, latest quote, history, quote stream.
 - Orders: create, list, get, cancel.
-- Portfolio: summary, positions, ledger.
+- Portfolio: summary, positions, ledger, history.
 - Risk: latest snapshot and history.
-- Admin: replay status/start/stop and queue health.
+- Admin: replay status/start/stop, queue health, and archive exports.
 - Observability: health and Prometheus metrics.
 
 ## Testing Summary
 
-Most recent local verification on June 28, 2026:
+Most recent local verification on June 29, 2026:
 
 | Area | Result |
 | --- | ---: |
-| Backend Maven tests | 126 passed |
-| Frontend Vitest tests | 14 passed |
-| Market-data worker pytest | 15 passed |
+| Backend Maven tests | 147 passed |
+| Frontend Vitest tests | 16 passed |
+| Market-data worker pytest | 22 passed |
 | Frontend production build | Passed with existing Vite chunk-size warning |
 
 Additional coverage:
 
-- Backend unit tests cover fill settlement, average cost, realized P&L, idempotency, rejection paths, risk calculations, access control, and controller behavior.
+- Backend unit tests cover fill settlement, average cost, realized P&L, idempotency, rejection paths, portfolio history, risk calculations, access control, and controller behavior.
 - Backend integration tests use Testcontainers for PostgreSQL and Redis when Docker is available.
 - Frontend tests cover auth, dashboard, orders, portfolio, risk, and admin views with mocked APIs.
+- Worker tests cover deterministic replay, event serialization, and fixture-based backtest metrics.
 - Playwright E2E covers the browser trading flow with mocked APIs by default and can target a seeded local stack.
 - k6 scripts cover order creation and quote API load paths.
 
@@ -137,9 +142,11 @@ These are local baseline measurements, not production capacity claims. Details a
 
 ## Observability
 
-The backend exposes `/actuator/health` and `/actuator/prometheus`. Custom metrics include market tick consumption/failures, order created/filled/rejected counts, quote stream clients/events/failures, quote cache hits/misses, and portfolio calculation latency.
+The backend exposes `/actuator/health` and `/actuator/prometheus`. Custom metrics include market tick consumption/failures, order created/filled/rejected counts, event consumer retries/dead letters, quote stream clients/events/failures, quote cache hits/misses, and portfolio calculation latency.
 
-Grafana provisioning lives under `infra/grafana/provisioning` and includes the `LedgerStream Overview` dashboard. Screenshot placeholder: `docs/assets/observability/grafana-ledgerstream-overview.png`.
+Grafana provisioning lives under `infra/grafana/provisioning` and includes the `LedgerStream Overview` dashboard.
+
+![LedgerStream Grafana overview dashboard](docs/assets/observability/grafana-ledgerstream-overview.png)
 
 Observability guide: [Observability](docs/observability.md)
 
@@ -165,6 +172,7 @@ Deployment guide: [Deployment](docs/deployment.md)
 - Refresh-token rotation and logout revocation.
 - User-scoped repository queries for orders, portfolio, positions, ledger, and risk.
 - Admin endpoints require `ADMIN`.
+- Archive exports are disabled by default and only expose user IDs, portfolio IDs, and portfolio snapshot metrics.
 - CORS is environment-driven and must use exact frontend origins.
 - Request logs omit bodies, query strings, authorization headers, cookies, passwords, access tokens, refresh tokens, API keys, and raw client IPs.
 - Dependabot and Dependency Review cover Maven, npm, and Python dependency changes.
@@ -178,9 +186,10 @@ Security details: [Security](docs/security.md)
 - Kafka publishes are not backed by an outbox table yet.
 - SSE subscription state is in memory; multi-instance deployment needs sticky routing or shared fanout.
 - Rate limits are in-memory per backend instance; Redis-backed distributed limits are future work.
-- Limit orders can be accepted as pending, but matching is future work.
+- Limit orders fill against the latest last price when crossed; there are no partial fills or time-in-force controls yet.
 - Refresh tokens are stored in browser `sessionStorage` for the MVP; HttpOnly cookies are the preferred production improvement.
-- Grafana screenshots and a 60-90 second demo video are placeholders until captured.
+- Archive HTTP PUT support expects an object-storage upload gateway or URL prefix that accepts PUT requests; native cloud-provider request signing is not included.
+- Product screenshots and a 60-90 second demo video are placeholders until captured.
 
 ## Local Setup
 
@@ -212,7 +221,7 @@ npm run test:ci
 npm run build
 ```
 
-Run worker tests and dry-run replay:
+Run worker tests, dry-run replay, and fixture backtest:
 
 ```bash
 cd workers/market-data
@@ -221,19 +230,20 @@ python3 -m venv .venv
 pip install -r requirements.txt
 PYTHONPATH=src pytest
 PYTHONPATH=src python -m ledgerstream_market_data replay --file data/sample_ticks.csv --dry-run
+PYTHONPATH=src python -m ledgerstream_market_data backtest --file data/sample_ticks.csv --symbol AAPL
 ```
 
 Local demo seed is disabled by default. Enable it only for local or demo environments with `DEMO_SEED_ENABLED=true` and provider/local environment variables for demo credentials.
+
+Backtesting details and limitations: [Backtesting](docs/backtesting.md)
 
 ## Future Work
 
 - Deploy or schedule a hosted market-data worker for Redpanda Cloud.
 - Add broker-backed end-to-end event-flow tests.
 - Add an outbox or transactional messaging layer.
-- Add dead-letter topics and retry handling.
-- Add limit-order matching.
-- Add historical portfolio snapshots.
-- Add a simple backtesting service.
+- Add DLT re-drive tooling.
+- Add advanced order controls such as time in force and partial-fill modeling.
 - Add archive export paths.
 - Move refresh tokens to `Secure`, `HttpOnly`, `SameSite` cookies.
 - Capture Grafana screenshots and a short demo video.

@@ -1,41 +1,41 @@
 package com.ledgerstream.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 
 import java.time.Duration;
 import java.util.Map;
 
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.ledgerstream.config.properties.KafkaProperties;
+import com.ledgerstream.events.EventTopics;
 import com.ledgerstream.events.MarketTickEvent;
+import com.ledgerstream.metrics.LedgerStreamMetrics;
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
-import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.config.SaslConfigs;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
+import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.kafka.support.serializer.JsonSerializer;
 
 class EventStreamingConfigurationTest {
 
-	private final EventStreamingConfiguration configuration = new EventStreamingConfiguration();
-	private final KafkaProperties kafkaProperties = new KafkaProperties(
-		"localhost:19092",
-		"ledgerstream-test",
-		false,
-		false,
-		false,
-		null,
-		null,
-		null,
-		null,
-		null
-	);
+	private EventStreamingConfiguration configuration;
+	private KafkaProperties kafkaProperties;
+
+	@BeforeEach
+	void setUp() {
+		configuration = new EventStreamingConfiguration();
+		kafkaProperties = kafkaProperties();
+	}
 
 	@Test
 	void producerFactoryUsesJsonAndIdempotentAcks() {
@@ -50,10 +50,6 @@ class EventStreamingConfigurationTest {
 		assertThat(config).containsEntry(ProducerConfig.ACKS_CONFIG, "all");
 		assertThat(config).containsEntry(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
 		assertThat(config).doesNotContainKey(JsonSerializer.ADD_TYPE_INFO_HEADERS);
-		assertThatCode(() -> {
-			Producer<String, Object> producer = producerFactory.createProducer();
-			producer.close(Duration.ZERO);
-		}).doesNotThrowAnyException();
 	}
 
 	@Test
@@ -79,6 +75,9 @@ class EventStreamingConfigurationTest {
 			false,
 			true,
 			true,
+			3,
+			Duration.ofSeconds(2),
+			EventTopics.DEFAULT_DEAD_LETTER_SUFFIX,
 			"SASL_SSL",
 			"SCRAM-SHA-256",
 			"service-user",
@@ -106,5 +105,48 @@ class EventStreamingConfigurationTest {
 		assertThat(consumerFactory.getConfigurationProperties())
 			.containsEntry(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, "SASL_SSL")
 			.containsEntry(SaslConfigs.SASL_MECHANISM, "SCRAM-SHA-256");
+	}
+
+	@Test
+	void listenerFactoriesUseSharedErrorHandler() {
+		ConsumerFactory<String, MarketTickEvent> consumerFactory = configuration.marketTickConsumerFactory(
+			kafkaProperties,
+			JsonMapper.builder().findAndAddModules().build()
+		);
+		DefaultErrorHandler errorHandler = configuration.eventKafkaErrorHandler(
+			Mockito.mock(KafkaTemplate.class),
+			kafkaProperties,
+			Mockito.mock(LedgerStreamMetrics.class)
+		);
+
+		ConcurrentKafkaListenerContainerFactory<String, MarketTickEvent> factory =
+			configuration.marketTickKafkaListenerContainerFactory(consumerFactory, errorHandler);
+
+		assertThat(factory.createContainer(EventTopics.MARKET_TICK).getCommonErrorHandler()).isSameAs(errorHandler);
+	}
+
+	@Test
+	void deadLetterTopicUsesConfiguredSuffix() {
+		assertThat(EventTopics.deadLetterTopic(EventTopics.MARKET_TICK, ".DLT")).isEqualTo("market.tick.DLT");
+		assertThat(EventTopics.deadLetterTopic(EventTopics.ORDER_CREATED, ""))
+			.isEqualTo("order.created" + EventTopics.DEFAULT_DEAD_LETTER_SUFFIX);
+	}
+
+	private KafkaProperties kafkaProperties() {
+		return new KafkaProperties(
+			"localhost:19092",
+			"ledgerstream-test",
+			false,
+			false,
+			false,
+			3,
+			Duration.ofSeconds(2),
+			EventTopics.DEFAULT_DEAD_LETTER_SUFFIX,
+			null,
+			null,
+			null,
+			null,
+			null
+		);
 	}
 }

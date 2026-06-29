@@ -26,12 +26,14 @@ This document describes the implemented LedgerStream HTTP API and Kafka-compatib
 | Portfolio | `GET` | `/api/portfolio` | User | Implemented. Summary with cash, equity, and P&L. |
 | Portfolio | `GET` | `/api/portfolio/positions` | User | Implemented. Position list with quote-derived valuations. |
 | Portfolio | `GET` | `/api/portfolio/ledger?page=0&size=50` | User | Implemented. Paginated append-only ledger entries. |
+| Portfolio | `GET` | `/api/portfolio/history?page=0&size=50` | User | Implemented. Historical portfolio equity, cash, exposure, and P&L snapshots. |
 | Risk | `GET` | `/api/portfolio/risk` | User | Implemented. Latest risk snapshot. |
 | Risk | `GET` | `/api/portfolio/risk/history?page=0&size=50` | User | Implemented. Historical risk snapshots. |
 | Admin | `GET` | `/api/admin/market/replay/status` | Admin | Implemented. Return backend replay-control state. |
 | Admin | `POST` | `/api/admin/market/replay/start` | Admin | Implemented. Mark deterministic replay state as running and record an audit event. |
 | Admin | `POST` | `/api/admin/market/replay/stop` | Admin | Implemented. Mark deterministic replay state as stopped and record an audit event. |
 | Admin | `GET` | `/api/admin/queue-health` | Admin | Implemented. Returns current queue-health integration status. |
+| Admin | `POST` | `/api/admin/archive/portfolio-snapshots?date=2026-01-02` | Admin | Implemented. Export daily portfolio snapshots to the configured archive sink. |
 | Observability | `GET` | `/actuator/health` | Public or internal | Health checks. |
 | Observability | `GET` | `/actuator/prometheus` | Internal | Prometheus metrics. |
 
@@ -249,23 +251,26 @@ The order API creates user-scoped paper orders with a required `Idempotency-Key`
 
 New orders start as `PENDING` and publish an `order.created` event. Pending orders can transition to `CANCELLED`; non-pending cancellation attempts return a conflict error.
 
-Market order execution is asynchronous from the REST submission path. The backend consumes `order.created`, looks up the stored order, and executes only `MARKET` orders that are still `PENDING`. `LIMIT` orders intentionally remain pending until the limit-order matching flow is implemented.
+Order execution is asynchronous from the REST submission path. The backend consumes `order.created`, looks up the stored order, and evaluates `PENDING` market and limit orders. Accepted market ticks also re-check pending limit orders for that symbol.
 
-Current market execution assumptions:
+Current execution assumptions:
 
-- BUY orders execute at the latest ask price, falling back to last price when ask is unavailable.
-- SELL orders execute at the latest bid price, falling back to last price when bid is unavailable.
-- Missing quotes or non-positive executable prices reject the order.
+- Market BUY orders execute at the latest ask price, falling back to last price when ask is unavailable.
+- Market SELL orders execute at the latest bid price, falling back to last price when bid is unavailable.
+- BUY limit orders fill when the latest last price is less than or equal to `limitPrice`; SELL limit orders fill when the latest last price is greater than or equal to `limitPrice`.
+- Limit orders that do not cross remain `PENDING` and can be cancelled.
+- Missing quotes reject market orders but leave limit orders pending for later ticks.
+- Non-positive executable prices, insufficient cash, insufficient shares, or missing portfolios reject the order.
 - BUY orders require enough portfolio cash for notional value plus the current zero-fee model.
 - SELL orders require enough existing position quantity.
-- Filled market orders create a fill, settle portfolio cash and position state in the same transaction, mark the order `FILLED`, and publish `order.filled`.
-- Rejected market orders are marked `REJECTED` with a safe rejection reason and do not create fills.
+- Filled orders create a fill, settle portfolio cash and position state in the same transaction, mark the order `FILLED`, and publish `order.filled`.
+- Rejected orders are marked `REJECTED` with a safe rejection reason and do not create fills.
 
 Portfolio settlement uses these rounding assumptions: cash, fees, and realized P&L are rounded to 2 decimal places with `HALF_UP`; prices, quantities, and average cost are rounded to 6 decimal places with `HALF_UP`. BUY fills decrease cash by `price * quantity + fee`, increase quantity, and recalculate weighted average cost. SELL fills increase cash by `price * quantity - fee`, decrease quantity, and add realized P&L as `(execution price - average cost) * quantity - fee`. A full sell leaves a zero-quantity position row with average cost reset to zero.
 
-Each filled market order also appends one ledger entry in the same transaction as the fill, cash update, and position update. BUY fill ledger rows record a negative cash delta and positive quantity delta. SELL fill ledger rows record a positive cash delta and negative quantity delta. The ledger row links the user, portfolio, order, fill, symbol, execution price, and metadata including side, order type, and fee.
+Each filled order also appends one ledger entry in the same transaction as the fill, cash update, and position update. BUY fill ledger rows record a negative cash delta and positive quantity delta. SELL fill ledger rows record a positive cash delta and negative quantity delta. The ledger row links the user, portfolio, order, fill, symbol, execution price, and metadata including side, order type, and fee.
 
-Filled orders now create risk snapshots and publish `risk.updated`. Portfolio summary events remain a follow-on layer.
+Filled orders now create portfolio history and risk snapshots, then publish `risk.updated`. Portfolio summary events remain a follow-on layer.
 
 `POST /api/orders`
 
@@ -377,6 +382,32 @@ Position valuation uses the latest quote `last` price when available. If no late
 }
 ```
 
+`GET /api/portfolio/history?page=0&size=50`
+
+Portfolio history snapshots are recorded after successful fills and after accepted market ticks for users holding the ticked symbol. The endpoint returns zero-based paginated snapshots; `size` must be between `1` and `100`.
+
+```json
+{
+  "snapshots": [
+    {
+      "id": "00000000-0000-0000-0000-000000000105",
+      "portfolioId": "00000000-0000-0000-0000-000000000100",
+      "totalEquity": 100000.00,
+      "cash": 98125.20,
+      "marketValue": 1874.80,
+      "grossExposure": 1874.80,
+      "realizedPnl": 0.00,
+      "unrealizedPnl": 0.00,
+      "createdAt": "2026-01-02T14:35:00Z"
+    }
+  ],
+  "page": 0,
+  "size": 50,
+  "totalElements": 1,
+  "totalPages": 1
+}
+```
+
 ## Risk
 
 Risk snapshots are calculated after successful fills and after accepted market ticks for users holding the ticked symbol. The backend persists snapshots in `risk_snapshots` and publishes `risk.updated`.
@@ -428,7 +459,7 @@ If a latest quote is unavailable, risk valuation falls back to average cost and 
 
 ## Pagination
 
-Ledger and risk history endpoints use zero-based pagination:
+Ledger, portfolio history, and risk history endpoints use zero-based pagination:
 
 | Parameter | Default | Bounds | Notes |
 | --- | ---: | --- | --- |
@@ -467,7 +498,30 @@ The current MVP uses `mode: "backend_state"`. These endpoints do not spawn or ki
     "portfolioUpdated": "portfolio.updated",
     "riskUpdated": "risk.updated",
     "auditEvent": "audit.event"
+  },
+  "deadLetterTopics": {
+    "marketTick": "market.tick.DLT",
+    "orderCreated": "order.created.DLT"
+  },
+  "retryPolicy": {
+    "retryMaxAttempts": 3,
+    "retryBackoff": "PT2S",
+    "deadLetterSuffix": ".DLT"
   }
+}
+```
+
+`POST /api/admin/archive/portfolio-snapshots?date=2026-01-02` exports portfolio snapshot rows for the UTC day to the configured archive sink. The `date` parameter is optional and defaults to the current UTC date. Archive exports are disabled by default; disabled exports return `409`.
+
+```json
+{
+  "archiveType": "portfolio_snapshots",
+  "key": "portfolio-snapshots/date=2026-01-02/portfolio-snapshots-20260102T000000Z-20260103T000000Z.json",
+  "uri": "file:///app/data/archives/portfolio-snapshots/date=2026-01-02/portfolio-snapshots-20260102T000000Z-20260103T000000Z.json",
+  "sizeBytes": 2048,
+  "checksumSha256": "8f434346648f6b96df89dda901c5176b10a6d83961dd3c1ac88b59b2dc327aa4",
+  "exportedRecords": 12,
+  "exportedAt": "2026-01-03T01:00:00Z"
 }
 ```
 
@@ -513,6 +567,16 @@ curl -sS -X POST "$BASE_URL/api/orders" \
   -H 'Content-Type: application/json' \
   -H 'Idempotency-Key: demo-order-0001' \
   -d '{"symbol":"AAPL","side":"BUY","orderType":"MARKET","quantity":1}'
+```
+
+Create a paper limit order:
+
+```bash
+curl -sS -X POST "$BASE_URL/api/orders" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: demo-limit-order-0001' \
+  -d '{"symbol":"AAPL","side":"BUY","orderType":"LIMIT","quantity":1,"limitPrice":180.00}'
 ```
 
 Read portfolio and ledger state:

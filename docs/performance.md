@@ -135,7 +135,7 @@ The integration test class is marked with Testcontainers' Docker-disabled skip b
 
 ## Worker Test Strategy
 
-Market-data worker tests validate deterministic CSV parsing, invalid row handling, event serialization, dry-run replay output, publisher calls, and replay timing calculations with an injected sleeper. These tests do not produce throughput or latency claims; replay throughput remains a planned measurement once the full local stack can be run.
+Market-data worker tests validate deterministic CSV parsing, invalid row handling, event serialization, dry-run replay output, publisher calls, replay timing calculations with an injected sleeper, and fixture-based buy-and-hold and moving-average crossover backtest metrics. These tests do not produce throughput or latency claims; replay throughput remains a planned measurement once the full local stack can be run.
 
 ## Frontend Test Strategy
 

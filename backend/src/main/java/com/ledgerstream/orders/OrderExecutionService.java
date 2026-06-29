@@ -25,6 +25,7 @@ import com.ledgerstream.events.OrderFilledEvent;
 import com.ledgerstream.logging.MdcScope;
 import com.ledgerstream.metrics.LedgerStreamMetrics;
 import com.ledgerstream.portfolio.PortfolioLedgerService;
+import com.ledgerstream.portfolio.PortfolioSnapshotService;
 import com.ledgerstream.quotes.QuoteQueryService;
 import com.ledgerstream.quotes.dto.QuoteResponse;
 import com.ledgerstream.risk.RiskCalculationService;
@@ -55,6 +56,7 @@ public class OrderExecutionService {
 	private final QuoteQueryService quoteQueryService;
 	private final PortfolioLedgerService portfolioLedgerService;
 	private final RiskCalculationService riskCalculationService;
+	private final PortfolioSnapshotService portfolioSnapshotService;
 	private final EventPublisher eventPublisher;
 	private final AuditService auditService;
 	private final LedgerStreamMetrics metrics;
@@ -68,6 +70,7 @@ public class OrderExecutionService {
 		QuoteQueryService quoteQueryService,
 		PortfolioLedgerService portfolioLedgerService,
 		RiskCalculationService riskCalculationService,
+		PortfolioSnapshotService portfolioSnapshotService,
 		EventPublisher eventPublisher,
 		AuditService auditService,
 		LedgerStreamMetrics metrics,
@@ -80,6 +83,7 @@ public class OrderExecutionService {
 		this.quoteQueryService = quoteQueryService;
 		this.portfolioLedgerService = portfolioLedgerService;
 		this.riskCalculationService = riskCalculationService;
+		this.portfolioSnapshotService = portfolioSnapshotService;
 		this.eventPublisher = eventPublisher;
 		this.auditService = auditService;
 		this.metrics = metrics;
@@ -96,19 +100,30 @@ public class OrderExecutionService {
 		execute(order, null);
 	}
 
+	@Transactional
+	public void executePendingLimitOrders(String ticker) {
+		orderRepository.findBySymbolTickerAndStatusAndOrderType(ticker, OrderStatus.PENDING, OrderType.LIMIT)
+			.forEach(order -> execute(order, null));
+	}
+
 	private void execute(TradeOrder order, String requestId) {
-		if (order.getStatus() != OrderStatus.PENDING || order.getOrderType() != OrderType.MARKET) {
+		if (order.getStatus() != OrderStatus.PENDING) {
 			return;
 		}
 
 		QuoteResponse quote = latestQuote(order);
 		if (quote == null) {
-			reject(order, "No market quote available", requestId);
+			if (order.getOrderType() == OrderType.MARKET) {
+				reject(order, "No market quote available", requestId);
+			}
 			return;
 		}
 
-		BigDecimal executionPrice = executionPrice(order.getSide(), quote);
-		if (executionPrice == null || executionPrice.compareTo(BigDecimal.ZERO) <= 0) {
+		BigDecimal executionPrice = executionPrice(order, quote);
+		if (executionPrice == null) {
+			return;
+		}
+		if (executionPrice.compareTo(BigDecimal.ZERO) <= 0) {
 			reject(order, "No executable market price available", requestId);
 			return;
 		}
@@ -146,6 +161,7 @@ public class OrderExecutionService {
 		Fill savedFill = fillRepository.save(fill);
 		applyPortfolioUpdate(portfolio, savedFill, sellPosition);
 		riskCalculationService.recordSnapshot(order.getUser().getId());
+		portfolioSnapshotService.recordSnapshot(order.getUser().getId());
 		eventPublisher.publishOrderFilled(toOrderFilledEvent(savedFill));
 		metrics.recordOrderFilled();
 		try (MdcScope ignored = orderLogContext(order, "order.filled")) {
@@ -164,11 +180,29 @@ public class OrderExecutionService {
 		}
 	}
 
-	private BigDecimal executionPrice(OrderSide side, QuoteResponse quote) {
-		if (side == OrderSide.BUY) {
+	private BigDecimal executionPrice(TradeOrder order, QuoteResponse quote) {
+		if (order.getOrderType() == OrderType.LIMIT) {
+			return executableLimitPrice(order, quote);
+		}
+		if (order.getSide() == OrderSide.BUY) {
 			return quote.ask() == null ? quote.last() : quote.ask();
 		}
 		return quote.bid() == null ? quote.last() : quote.bid();
+	}
+
+	private BigDecimal executableLimitPrice(TradeOrder order, QuoteResponse quote) {
+		BigDecimal latestPrice = quote.last();
+		BigDecimal limitPrice = order.getLimitPrice();
+		if (latestPrice == null || limitPrice == null) {
+			return null;
+		}
+		if (order.getSide() == OrderSide.BUY && latestPrice.compareTo(limitPrice) <= 0) {
+			return latestPrice;
+		}
+		if (order.getSide() == OrderSide.SELL && latestPrice.compareTo(limitPrice) >= 0) {
+			return latestPrice;
+		}
+		return null;
 	}
 
 	private boolean hasSufficientCash(Portfolio portfolio, TradeOrder order, BigDecimal executionPrice) {

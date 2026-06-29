@@ -58,6 +58,39 @@ describe('PortfolioPage', () => {
           ]);
         }
 
+        if (url.includes('/api/portfolio/history')) {
+          return jsonResponse({
+            snapshots: [
+              {
+                id: '00000000-0000-0000-0000-000000000701',
+                portfolioId: '00000000-0000-0000-0000-000000000201',
+                totalEquity: 50000,
+                cash: 50000,
+                marketValue: 0,
+                grossExposure: 0,
+                realizedPnl: 0,
+                unrealizedPnl: 0,
+                createdAt: '2026-01-02T14:30:00Z'
+              },
+              {
+                id: '00000000-0000-0000-0000-000000000702',
+                portfolioId: '00000000-0000-0000-0000-000000000201',
+                totalEquity: 51474.2,
+                cash: 49600,
+                marketValue: 1874.2,
+                grossExposure: 1874.2,
+                realizedPnl: 124.5,
+                unrealizedPnl: -12.8,
+                createdAt: '2026-01-02T14:35:00Z'
+              }
+            ],
+            page: 0,
+            size: 50,
+            totalElements: 2,
+            totalPages: 1
+          });
+        }
+
         if (url.includes('/api/portfolio/ledger') && url.includes('page=1')) {
           return jsonResponse({
             entries: [
@@ -124,6 +157,8 @@ describe('PortfolioPage', () => {
 
     expect((await screen.findAllByText('AAPL')).length).toBeGreaterThan(0);
     expect(screen.getAllByText('$1,874.20').length).toBeGreaterThan(0);
+    expect(screen.getByRole('heading', { name: /equity history/i })).toBeInTheDocument();
+    expect(screen.getByText('2 points')).toBeInTheDocument();
     expect(screen.getByText('Buy Fill')).toBeInTheDocument();
     expect(screen.getByText('Page 1 of 2')).toBeInTheDocument();
   });
