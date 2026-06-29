@@ -42,7 +42,7 @@ public class EventStreamingConfiguration {
 		config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
 		config.put(ProducerConfig.ACKS_CONFIG, "all");
 		config.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
-		config.putAll(kafkaProperties.clientProperties());
+		config.putAll(kafkaProperties.producerProperties());
 
 		JsonSerializer<Object> valueSerializer = new JsonSerializer<>(objectMapper);
 		valueSerializer.setAddTypeInfo(false);

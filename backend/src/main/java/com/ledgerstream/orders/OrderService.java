@@ -147,7 +147,14 @@ public class OrderService {
 
 		TradeOrder savedOrder = orderRepository.save(order);
 		auditService.record(savedOrder.getUser(), "ORDER_CREATED", requestId, orderMetadata(savedOrder));
-		eventPublisher.publishOrderCreated(toOrderCreatedEvent(savedOrder, requestId));
+		try {
+			eventPublisher.publishOrderCreated(toOrderCreatedEvent(savedOrder, requestId));
+		} catch (RuntimeException ex) {
+			try (MdcScope ignored = orderLogContext(savedOrder, "order.created.publish_failed")) {
+				log.warn("order_event_publish_failed", ex);
+			}
+			throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Order event stream unavailable");
+		}
 		metrics.recordOrderCreated();
 		try (MdcScope ignored = orderLogContext(savedOrder, "order.created")) {
 			log.info("order_created");

@@ -49,6 +49,9 @@ class EventStreamingConfigurationTest {
 		assertThat(config).containsEntry(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:19092");
 		assertThat(config).containsEntry(ProducerConfig.ACKS_CONFIG, "all");
 		assertThat(config).containsEntry(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
+		assertThat(config).containsEntry(ProducerConfig.MAX_BLOCK_MS_CONFIG, 5000L);
+		assertThat(config).containsEntry(ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG, 10000);
+		assertThat(config).containsEntry(ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, 15000);
 		assertThat(config).doesNotContainKey(JsonSerializer.ADD_TYPE_INFO_HEADERS);
 	}
 
@@ -78,6 +81,9 @@ class EventStreamingConfigurationTest {
 			3,
 			Duration.ofSeconds(2),
 			EventTopics.DEFAULT_DEAD_LETTER_SUFFIX,
+			Duration.ofSeconds(5),
+			Duration.ofSeconds(10),
+			Duration.ofSeconds(15),
 			"SASL_SSL",
 			"SCRAM-SHA-256",
 			"service-user",
@@ -142,6 +148,9 @@ class EventStreamingConfigurationTest {
 			3,
 			Duration.ofSeconds(2),
 			EventTopics.DEFAULT_DEAD_LETTER_SUFFIX,
+			Duration.ofSeconds(5),
+			Duration.ofSeconds(10),
+			Duration.ofSeconds(15),
 			null,
 			null,
 			null,

@@ -174,6 +174,27 @@ class OrderServiceTest {
 	}
 
 	@Test
+	void createOrderReturnsServiceUnavailableWhenOrderEventCannotBePublished() {
+		when(orderRepository.findByUserIdAndIdempotencyKey(USER_ID, "order-key-publish-fails")).thenReturn(Optional.empty());
+		when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+		when(symbolRepository.findByTicker("AAPL")).thenReturn(Optional.of(symbol));
+		when(orderRepository.save(any(TradeOrder.class))).thenAnswer(invocation -> persist(invocation.getArgument(0)));
+		when(eventPublisher.publishOrderCreated(any(OrderCreatedEvent.class)))
+			.thenThrow(new IllegalStateException("metadata unavailable"));
+
+		assertThatThrownBy(() -> orderService.createOrder(
+			authenticatedUser,
+			"order-key-publish-fails",
+			new CreateOrderRequest("AAPL", OrderSide.BUY, OrderType.MARKET, new BigDecimal("1.000000"), null)
+		)).isInstanceOfSatisfying(ResponseStatusException.class, ex -> {
+			assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+			assertThat(ex.getReason()).isEqualTo("Order event stream unavailable");
+		});
+
+		assertThat(counter(LedgerStreamMetrics.ORDERS_CREATED)).isZero();
+	}
+
+	@Test
 	void createLimitOrderRequiresPositiveLimitPrice() {
 		when(orderRepository.findByUserIdAndIdempotencyKey(USER_ID, "order-key-3")).thenReturn(Optional.empty());
 

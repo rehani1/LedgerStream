@@ -76,6 +76,9 @@ ledgerstream:
     retry-max-attempts: ${BACKEND_KAFKA_RETRY_MAX_ATTEMPTS:3}
     retry-backoff: ${BACKEND_KAFKA_RETRY_BACKOFF:2s}
     dead-letter-suffix: ${BACKEND_KAFKA_DEAD_LETTER_SUFFIX:.DLT}
+    producer-max-block: ${BACKEND_KAFKA_PRODUCER_MAX_BLOCK:5s}
+    producer-request-timeout: ${BACKEND_KAFKA_PRODUCER_REQUEST_TIMEOUT:10s}
+    producer-delivery-timeout: ${BACKEND_KAFKA_PRODUCER_DELIVERY_TIMEOUT:15s}
     security-protocol: ${BACKEND_KAFKA_SECURITY_PROTOCOL:}
     sasl-mechanism: ${BACKEND_KAFKA_SASL_MECHANISM:}
     sasl-username: ${BACKEND_KAFKA_SASL_USERNAME:}
