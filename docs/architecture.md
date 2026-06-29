@@ -27,7 +27,7 @@ flowchart LR
 | --- | --- |
 | `frontend` | Authenticated React dashboard for quotes, streaming prices, order entry, order history, portfolio, ledger, risk, and admin replay controls. |
 | `backend` | REST API, JWT and refresh-token auth, RBAC, SSE gateway, quote queries, order submission, market and limit execution, portfolio ledger settlement, portfolio history, risk calculations, structured logs, metrics, and health checks. |
-| `market-data-worker` | Deterministic CSV replay, row validation, replay speed control, dry-run output, and normalized `market.tick` event publishing. |
+| `market-data-worker` | Deterministic CSV replay, row validation, replay speed control, dry-run output, normalized `market.tick` event publishing, and fixture-based simple backtests. |
 | `postgres` | Durable relational source of truth for users, tokens, symbols, ticks, orders, fills, portfolios, positions, ledger rows, portfolio snapshots, risk snapshots, and audit events. |
 | `redis` | Hot latest-quote cache using `latest_quote:{SYMBOL}` keys. Quote APIs fall back to PostgreSQL when the cache misses or cache reads fail. |
 | `redpanda` | Kafka-compatible event stream for market data and backend domain events. |

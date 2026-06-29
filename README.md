@@ -56,6 +56,7 @@ Detailed system design: [Architecture](docs/architecture.md)
 - Symbol and quote APIs with Redis hot-cache reads and PostgreSQL fallback.
 - Authenticated SSE quote streaming.
 - Deterministic CSV market replay through a Python worker.
+- Deterministic fixture backtests for buy-and-hold and moving-average crossover strategies.
 - Kafka-compatible JSON event contracts for `market.tick`, `order.created`, `order.filled`, `portfolio.updated`, `risk.updated`, and `audit.event`.
 - Idempotent paper-order creation, user-scoped order history, and cancellation for pending orders.
 - Market order simulation with explicit rejection reasons and crossed limit-order simulation with pending cancellation support.
@@ -111,7 +112,7 @@ Most recent local verification on June 29, 2026:
 | --- | ---: |
 | Backend Maven tests | 142 passed |
 | Frontend Vitest tests | 16 passed |
-| Market-data worker pytest | 15 passed |
+| Market-data worker pytest | 22 passed |
 | Frontend production build | Passed with existing Vite chunk-size warning |
 
 Additional coverage:
@@ -119,6 +120,7 @@ Additional coverage:
 - Backend unit tests cover fill settlement, average cost, realized P&L, idempotency, rejection paths, portfolio history, risk calculations, access control, and controller behavior.
 - Backend integration tests use Testcontainers for PostgreSQL and Redis when Docker is available.
 - Frontend tests cover auth, dashboard, orders, portfolio, risk, and admin views with mocked APIs.
+- Worker tests cover deterministic replay, event serialization, and fixture-based backtest metrics.
 - Playwright E2E covers the browser trading flow with mocked APIs by default and can target a seeded local stack.
 - k6 scripts cover order creation and quote API load paths.
 
@@ -216,7 +218,7 @@ npm run test:ci
 npm run build
 ```
 
-Run worker tests and dry-run replay:
+Run worker tests, dry-run replay, and fixture backtest:
 
 ```bash
 cd workers/market-data
@@ -225,9 +227,12 @@ python3 -m venv .venv
 pip install -r requirements.txt
 PYTHONPATH=src pytest
 PYTHONPATH=src python -m ledgerstream_market_data replay --file data/sample_ticks.csv --dry-run
+PYTHONPATH=src python -m ledgerstream_market_data backtest --file data/sample_ticks.csv --symbol AAPL
 ```
 
 Local demo seed is disabled by default. Enable it only for local or demo environments with `DEMO_SEED_ENABLED=true` and provider/local environment variables for demo credentials.
+
+Backtesting details and limitations: [Backtesting](docs/backtesting.md)
 
 ## Future Work
 
@@ -236,7 +241,6 @@ Local demo seed is disabled by default. Enable it only for local or demo environ
 - Add an outbox or transactional messaging layer.
 - Add DLT re-drive tooling.
 - Add advanced order controls such as time in force and partial-fill modeling.
-- Add a simple backtesting service.
 - Add archive export paths.
 - Move refresh tokens to `Secure`, `HttpOnly`, `SameSite` cookies.
 - Capture Grafana screenshots and a short demo video.
