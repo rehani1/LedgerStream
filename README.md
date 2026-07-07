@@ -26,13 +26,10 @@ First-screen engineering signals:
 | Backend | <https://ledgerstream-backend-5rk9.onrender.com/> |
 | Backend health | <https://ledgerstream-backend-5rk9.onrender.com/actuator/health> |
 
+The backend runs on a free Render instance and may take 1–2.5 minutes to spin up from a cold start.
+
 Demo credentials: no shared public credentials are committed. Use local demo seeding for scripted demos, or register a temporary account once the deployed frontend is rebuilt with the final backend URL and Render CORS allows the Vercel origin.
-
-Demo video: placeholder until a 60-90 second walkthrough is recorded.
-
-Demo materials: [screenshot placeholders](docs/demo-script.md#screenshot-placeholders) and [60-90 second video script](docs/demo-script.md#60-90-second-demo-video-script).
-
-Current public deployment notes are tracked in [Deployment](docs/deployment.md) and [Demo Script](docs/demo-script.md). On June 28, 2026, Render health returned `UP`; direct backend auth, symbols, portfolio, positions, and ledger reads worked. Browser API calls still require Vercel `VITE_API_BASE_URL=https://ledgerstream-backend-5rk9.onrender.com` and Render `BACKEND_CORS_ALLOWED_ORIGINS=https://ledger-stream.vercel.app`. Quote and fill demos require a hosted market-data producer publishing `market.tick` events.
+Current public deployment notes are tracked in [Deployment](docs/deployment.md). On June 28, 2026, Render health returned `UP`; direct backend auth, symbols, portfolio, positions, and ledger reads worked. Browser API calls still require Vercel `VITE_API_BASE_URL=https://ledgerstream-backend-5rk9.onrender.com` and Render `BACKEND_CORS_ALLOWED_ORIGINS=https://ledger-stream.vercel.app`. Quote and fill demos require a hosted market-data producer publishing `market.tick` events.
 
 ## Architecture
 
@@ -191,7 +188,6 @@ Security details: [Security](docs/security.md)
 - Limit orders fill against the latest last price when crossed; there are no partial fills or time-in-force controls yet.
 - Refresh tokens are stored in browser `sessionStorage` for the MVP; HttpOnly cookies are the preferred production improvement.
 - Archive HTTP PUT support expects an object-storage upload gateway or URL prefix that accepts PUT requests; native cloud-provider request signing is not included.
-- Product screenshots and a 60-90 second demo video are placeholders until captured.
 
 ## Local Setup
 
@@ -248,4 +244,3 @@ Backtesting details and limitations: [Backtesting](docs/backtesting.md)
 - Add advanced order controls such as time in force and partial-fill modeling.
 - Add archive export paths.
 - Move refresh tokens to `Secure`, `HttpOnly`, `SameSite` cookies.
-- Capture Grafana screenshots and a short demo video.
